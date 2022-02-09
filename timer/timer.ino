@@ -59,11 +59,12 @@
 #define mTEST        3
 
 #define START_TRIP   LOW               // start switch trip condition
+#define LANE_TRIP    LOW
 #define NULL_TIME    99.999            // null (non-finish) time
 #define NUM_DIGIT    4                 // timer resolution (# of decimals)
 #define DISP_DIGIT   4                 // total number of display digits
 
-#define PWM_LED_ON   220
+#define PWM_LED_ON   20
 #define PWM_LED_OFF  255
 #define char2int(c) (c - '0')
 
@@ -97,19 +98,19 @@
 /*-----------------------------------------*
   - pin assignments -
  *-----------------------------------------*/
-byte BRIGHT_LEV   = A0;                // brightness level
-byte RESET_SWITCH =  8;                // reset switch
-byte STATUS_LED_R =  9;                // status LED (red)
-byte STATUS_LED_B = 10;                // status LED (blue)
-byte STATUS_LED_G = 11;                // status LED (green)
-byte START_GATE   = 12;                // start gate switch
-byte START_SOL    = 13;                // start solenoid
+byte BRIGHT_LEV   = 12;                // brightness level
+byte RESET_SWITCH = 13;                // reset switch
+byte STATUS_LED_R = 18;                // status LED (red)
+byte STATUS_LED_B = 21;                // status LED (blue)
+byte STATUS_LED_G = 19;                // status LED (green)
+byte START_GATE   = 23;                // start gate switch
+byte START_SOL    = 22;                // start solenoid
 
-//                Display #    1     2     3     4     5     6     7     8
+//                Display #    1     2     3     4     5     6 7     8
 int  DISP_ADD [MAX_DISP] = {0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77};    // display I2C addresses
 
 //                   Lane #    1     2     3     4     5     6
-byte LANE_DET [MAX_LANE] = {   2,    3,    4,    5,    6,    7};                // finish detection pins
+byte LANE_DET [MAX_LANE] = {  12,   14};                // finish detection pins
 
 /*-----------------------------------------*
   - global variables -
@@ -168,12 +169,9 @@ void setup()
   pinMode(STATUS_LED_B, OUTPUT);
   pinMode(STATUS_LED_G, OUTPUT);
   pinMode(START_SOL,    OUTPUT);
-  pinMode(RESET_SWITCH, INPUT);
-  pinMode(START_GATE,   INPUT);
+  pinMode(RESET_SWITCH, INPUT_PULLUP);
+  pinMode(START_GATE,   INPUT_PULLUP);
   pinMode(BRIGHT_LEV,   INPUT);
-
-  digitalWrite(RESET_SWITCH, HIGH);    // enable pull-up resistor
-  digitalWrite(START_GATE,   HIGH);    // enable pull-up resistor
 
   digitalWrite(START_SOL, LOW);
 
@@ -197,16 +195,14 @@ void setup()
 
   for (int n=0; n<MAX_LANE; n++)
   {
-    pinMode(LANE_DET[n], INPUT);
-
-    digitalWrite(LANE_DET[n], HIGH);   // enable pull-up resistor
+    pinMode(LANE_DET[n], INPUT_PULLUP);
   }
   set_display_brightness();
 
 /*-----------------------------------------*
   - software setup -
  *-----------------------------------------*/
-  Serial.begin(9600);
+  Serial.begin(9600, SERIAL_8N1);
   smsg(SMSG_POWER);
 
 /*-----------------------------------------*
@@ -308,11 +304,11 @@ void timer_racing_state()
   {
     current_time = micros();
 
-    for (int n=0; n<NUM_LANES; n++) lane_status[n] = bitRead(PIND, LANE_DET[n]);    // read status of all lanes
+    for (int n=0; n<NUM_LANES; n++) lane_status[n] = digitalRead(LANE_DET[n]);    // read status of all lanes
 
     for (int n=0; n<NUM_LANES; n++)
     {
-      if (lane_time[n] == 0 && lane_status[n] == HIGH && !lane_mask[n])    // car has crossed finish line
+      if (lane_time[n] == 0 && lane_status[n] == LANE_TRIP && !lane_mask[n])    // car has crossed finish line
       {
         lanes_left--;
 
@@ -483,9 +479,9 @@ void test_pdt_hw()
   {
     for (int n=0; n<NUM_LANES; n++)
     {
-      lane_status[n] = bitRead(PIND, LANE_DET[n]);    // read status of all lanes
+      lane_status[n] =  digitalRead(LANE_DET[n]);    // read status of all lanes
 
-      if (lane_status[n] == HIGH)
+      if (lane_status[n] == LANE_TRIP)
       {
         update_display(n, msgDark);
       }
@@ -1015,7 +1011,7 @@ void smsg(char msg, boolean crlf)
   {
     Serial.print(msg);
   }
-
+  Serial.flush();
   return;
 }
 
@@ -1033,7 +1029,7 @@ void smsg_str(const char * msg, boolean crlf)
   {
     Serial.print(msg);
   }
-
+  Serial.flush();
   return;
 }
 
@@ -1098,6 +1094,6 @@ void send_timer_info()
   Serial.println(tmps);
 
   Serial.println("-----------------------------");
-
+  Serial.flush();
   return;
 }
