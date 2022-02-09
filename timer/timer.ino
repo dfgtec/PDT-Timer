@@ -1,5 +1,5 @@
 /*================================================================================*
-   Pinewood Derby Timer                                Version 3.10 - 12 Dec 2020
+   Pinewood Derby Timer                                Version 3.xx - ?? Feb 2022
    www.dfgtec.com/pdt
 
    Flexible and affordable Pinewood Derby timer that interfaces with the 
@@ -10,7 +10,7 @@
    Refer to the website for setup and usage instructions.
 
 
-   Copyright (C) 2011-2020 David Gadberry
+   Copyright (C) 2011-2022 David Gadberry
 
    This work is licensed under the Creative Commons Attribution-NonCommercial-
    ShareAlike 3.0 Unported License. To view a copy of this license, visit 
@@ -22,10 +22,10 @@
 /*-----------------------------------------*
   - TIMER CONFIGURATION -
  *-----------------------------------------*/
-#define NUM_LANES    1                 // number of lanes
+#define NUM_LANES    2                 // number of lanes
 #define GATE_RESET   0                 // Enable closing start gate to reset timer
 
-//#define LED_DISPLAY  1                 // Enable lane place/time displays
+#define LED_DISPLAY  1                 // Enable lane place/time displays
 //#define DUAL_DISP    1                 // dual displays per lane (4 lanes max)
 //#define DUAL_MODE    1                 // dual display mode
 //#define LARGE_DISP   1                 // utilize large Adafruit displays (see website)
@@ -49,8 +49,8 @@
 /*-----------------------------------------*
   - static definitions -
  *-----------------------------------------*/
-#define PDT_VERSION  "3.10"            // software version
-#define MAX_LANE     6                 // maximum number of lanes (Uno)
+#define PDT_VERSION  "3.xx"            // software version
+#define MAX_LANE     8                 // maximum number of lanes (Uno)
 #define MAX_DISP     8                 // maximum number of displays (Adafruit)
 
 #define mREADY       0                 // program modes
@@ -95,22 +95,24 @@
 #define SMSG_GNUML   'N'               // <- request number of lanes
 #define SMSG_TINFO   'I'               // <- request timer information
 
+#define SMSG_DTEST   'T'               // <- development test function
+
 /*-----------------------------------------*
   - pin assignments -
  *-----------------------------------------*/
-byte BRIGHT_LEV   = 12;                // brightness level
-byte RESET_SWITCH = 13;                // reset switch
-byte STATUS_LED_R = 18;                // status LED (red)
-byte STATUS_LED_B = 21;                // status LED (blue)
-byte STATUS_LED_G = 19;                // status LED (green)
-byte START_GATE   = 23;                // start gate switch
-byte START_SOL    = 22;                // start solenoid
+byte BRIGHT_LEV   =  4;                // brightness level
+byte RESET_SWITCH =  2;                // reset switch
+byte STATUS_LED_R = 25;                // status LED (red)
+byte STATUS_LED_B = 26;                // status LED (blue)
+byte STATUS_LED_G = 27;                // status LED (green)
+byte START_GATE   =  5;                // start gate switch
+byte START_SOL    = 23;                // start solenoid
 
-//                Display #    1     2     3     4     5     6 7     8
+//                Display #    1     2     3     4     5     6     7     8
 int  DISP_ADD [MAX_DISP] = {0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77};    // display I2C addresses
 
-//                   Lane #    1     2     3     4     5     6
-byte LANE_DET [MAX_LANE] = {  12,   14};                // finish detection pins
+//                   Lane #    1     2     3     4     5     6     7     8
+byte LANE_DET [MAX_DISP] = {  12,   13,   14,   15,   16,   17,   18,   19};    // finish detection pins
 
 /*-----------------------------------------*
   - global variables -
@@ -210,8 +212,8 @@ void setup()
  *-----------------------------------------*/
   if (digitalRead(RESET_SWITCH) == LOW)
   {
-    mode = mTEST;
-    test_pdt_hw();
+   mode = mTEST;
+   test_pdt_hw();
   }
 
 /*-----------------------------------------*
@@ -219,6 +221,9 @@ void setup()
  *-----------------------------------------*/
   initialize(true);
   unmask_all_lanes();
+
+//dfg
+  REG_WRITE(GPIO_ENABLE_W1TC_REG, 0xFF << 12);
 }
 
 
@@ -402,6 +407,12 @@ void process_general_msgs()
   else if (serial_data == int(SMSG_TINFO))    // get timer information
   {
       send_timer_info();
+  }
+
+  else if (serial_data == int(SMSG_DTEST))    // development test function
+  {
+      uint32_t input = REG_READ(GPIO_IN_REG);
+      Serial.println((uint8_t)(input >> 12), BIN);
   }
 
   else if (serial_data == int(SMSG_DEBUG))    // toggle debug
@@ -835,7 +846,7 @@ void set_display_brightness()
   float new_level;
 
 #ifdef LED_DISPLAY
-  new_level = long(1023 - analogRead(BRIGHT_LEV)) / 1023.0F * 15.0F;
+  new_level = long(4095 - analogRead(BRIGHT_LEV)) / 4095.0F * 15.0F;
   new_level = min(new_level, (float)MAX_BRIGHT);
   new_level = max(new_level, (float)MIN_BRIGHT);
 
