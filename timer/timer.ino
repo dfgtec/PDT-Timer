@@ -2,7 +2,7 @@
    Pinewood Derby Timer                                Version 3.xx - ?? Feb 2022
    www.dfgtec.com/pdt
 
-   Flexible and affordable Pinewood Derby timer that interfaces with the 
+   Flexible and affordable Pinewood Derby timer that interfaces with the
    following software:
      - PD Test/Tune/Track Utility
      - Grand Prix Race Manager software
@@ -13,9 +13,9 @@
    Copyright (C) 2011-2022 David Gadberry
 
    This work is licensed under the Creative Commons Attribution-NonCommercial-
-   ShareAlike 3.0 Unported License. To view a copy of this license, visit 
-   http://creativecommons.org/licenses/by-nc-sa/3.0/ or send a letter to 
-   Creative Commons, 444 Castro Street, Suite 900, Mountain View, California, 
+   ShareAlike 3.0 Unported License. To view a copy of this license, visit
+   http://creativecommons.org/licenses/by-nc-sa/3.0/ or send a letter to
+   Creative Commons, 444 Castro Street, Suite 900, Mountain View, California,
    94041, USA.
  *================================================================================*/
 
@@ -212,8 +212,8 @@ void setup()
  *-----------------------------------------*/
   if (digitalRead(RESET_SWITCH) == LOW)
   {
-   mode = mTEST;
-   test_pdt_hw();
+    mode = mTEST;
+    test_pdt_hw();
   }
 
 /*-----------------------------------------*
@@ -370,8 +370,8 @@ void timer_finished_state()
 
   if (serial_data == int(SMSG_RSEND))    // resend race data
   {
-      smsg(SMSG_ACKNW);
-      send_race_results();
+    smsg(SMSG_ACKNW);
+    send_race_results();
   }
 
   set_display_brightness();
@@ -392,27 +392,27 @@ void process_general_msgs()
 
   serial_data = get_serial_data();
 
-  if (serial_data == int(SMSG_GVERS))    // get software version
+  if (serial_data == int(SMSG_GVERS))         // get software version
   {
-      sprintf(tmps, "vert=%s", PDT_VERSION);
-      smsg_str(tmps);
+    sprintf(tmps, "vert=%s", PDT_VERSION);
+    smsg_str(tmps);
   }
 
   else if (serial_data == int(SMSG_GNUML))    // get number of lanes
   {
-      sprintf(tmps, "numl=%d", NUM_LANES);
-      smsg_str(tmps);
+    sprintf(tmps, "numl=%d", NUM_LANES);
+    smsg_str(tmps);
   }
 
   else if (serial_data == int(SMSG_TINFO))    // get timer information
   {
-      send_timer_info();
+    send_timer_info();
   }
 
   else if (serial_data == int(SMSG_DTEST))    // development test function
   {
-      uint32_t input = REG_READ(GPIO_IN_REG);
-      Serial.println((uint8_t)(input >> 12), BIN);
+    uint32_t input = REG_READ(GPIO_IN_REG);
+    Serial.println((uint8_t)(input >> 12), BIN);
   }
 
   else if (serial_data == int(SMSG_DEBUG))    // toggle debug
@@ -475,7 +475,7 @@ void process_general_msgs()
  *================================================================================*/
 void test_pdt_hw()
 {
-  int  lane_status[NUM_LANES];
+  int lane_status[NUM_LANES];
   char ctmp[10];
 
 
@@ -680,9 +680,9 @@ void update_display(int lane, unsigned char msg[])
       disp_8x8[lane+4].setRotation(3);
       disp_8x8[lane+4].setCursor(2, 0);
       if (msg == msgBlank)
-         disp_8x8[lane+4].print(" ");
+        disp_8x8[lane+4].print(" ");
       else
-         disp_8x8[lane+4].print("-");
+        disp_8x8[lane+4].print("-");
     }
 #else
     disp_mat[lane+4].writeDigitRaw(d, msg[d]);
