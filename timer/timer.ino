@@ -22,7 +22,7 @@
 /*-----------------------------------------*
   - TIMER CONFIGURATION -
  *-----------------------------------------*/
-#define NUM_LANES    2                 // number of lanes
+#define NUM_LANES    8  //dfg          // number of lanes
 #define GATE_RESET   0                 // Enable closing start gate to reset timer
 
 #define LED_DISPLAY  1                 // Enable lane place/time displays
@@ -59,7 +59,7 @@
 #define mTEST        3
 
 #define START_TRIP   LOW               // start switch trip condition
-#define LANE_TRIP    LOW
+#define LANE_TRIP    HIGH              // lane finish trip condition
 #define NULL_TIME    99.999            // null (non-finish) time
 #define NUM_DIGIT    4                 // timer resolution (# of decimals)
 #define DISP_DIGIT   4                 // total number of display digits
@@ -124,7 +124,6 @@ boolean       finish_first;            // first pass in finish state flag
 unsigned long start_time;              // race start time (microseconds)
 unsigned long lane_time  [MAX_LANE];   // lane finish time (microseconds)
 int           lane_place [MAX_LANE];   // lane finish place
-boolean       lane_mask  [MAX_LANE];   // lane mask status
 
 int           serial_data;             // serial data
 byte          mode;                    // current program mode
@@ -154,6 +153,9 @@ Adafruit_7segment disp_mat[MAX_DISP];
 Adafruit_8x8matrix disp_8x8[MAX_DISP];
 #endif
 
+uint32_t lane_sts;
+uint8_t end_cond, lane_cur, lane_msk, lane_end;
+
 void initialize(boolean powerup=false);
 void dbg(int, const char * msg, int val=-999);
 void smsg(char msg, boolean crlf=true);
@@ -176,6 +178,8 @@ void setup()
   pinMode(BRIGHT_LEV,   INPUT);
 
   digitalWrite(START_SOL, LOW);
+
+  REG_WRITE(GPIO_ENABLE_W1TC_REG, 0xFF << 12);
 
 #ifdef LED_DISPLAY
   for (int n=0; n<MAX_DISP; n++)
@@ -220,10 +224,8 @@ void setup()
   - initialize timer -
  *-----------------------------------------*/
   initialize(true);
-  unmask_all_lanes();
+  lane_msk = B00000000;
 
-//dfg
-  REG_WRITE(GPIO_ENABLE_W1TC_REG, 0xFF << 12);
 }
 
 
@@ -289,7 +291,7 @@ void timer_ready_state()
  *================================================================================*/
 void timer_racing_state()
 {
-  int lanes_left, finish_order, lane_status[NUM_LANES];
+  int finish_order;
   unsigned long current_time, last_finish_time;
 
 
@@ -298,49 +300,40 @@ void timer_racing_state()
 
   finish_order = 0;
   last_finish_time = 0;
+  lane_end = lane_msk;
 
-  lanes_left = NUM_LANES;
-  for (int n=0; n<NUM_LANES; n++)
-  {
-    if (lane_mask[n]) lanes_left--;
-  }
-
-  while (lanes_left)
+  while (lane_end < end_cond)
   {
     current_time = micros();
-
-    for (int n=0; n<NUM_LANES; n++) lane_status[n] = digitalRead(LANE_DET[n]);    // read status of all lanes
+    lane_sts = REG_READ(GPIO_IN_REG) >> 12;    // read lane status
 
     for (int n=0; n<NUM_LANES; n++)
     {
-      if (lane_time[n] == 0 && lane_status[n] == LANE_TRIP && !lane_mask[n])    // car has crossed finish line
+      lane_cur = 1 << n;
+
+      if (!(lane_cur & lane_end) && (lane_cur & lane_sts))    // car has crossed finish line
       {
-        lanes_left--;
+        lane_end |= lane_cur;
 
         lane_time[n] = current_time - start_time;
-
         if (lane_time[n] > last_finish_time)
         {
           finish_order++;
           last_finish_time = lane_time[n];
         }
         lane_place[n] = finish_order;
-
         update_display(n, lane_place[n], lane_time[n], SHOW_PLACE);
       }
     }
 
     serial_data = get_serial_data();
-
     if (serial_data == int(SMSG_FORCE) || serial_data == int(SMSG_RESET) || digitalRead(RESET_SWITCH) == LOW)    // force race to end
     {
-      lanes_left = 0;
+      lane_end = end_cond;
       smsg(SMSG_ACKNW);
     }
   }
-
   send_race_results();
-
   mode = mFINISH;
 
   return;
@@ -453,17 +446,19 @@ void process_general_msgs()
     lane = serial_data - 48;
     if (lane >= 1 && lane <= NUM_LANES)
     {
-      lane_mask[lane-1] = true;
+      lane_msk |= 1 << (lane-1);
 
       dbg(fDebug, "set mask on lane = ", lane);
     }
     smsg(SMSG_ACKNW);
+    Serial.println(lane_msk, BIN); //dfg
   }
 
   else if (serial_data == int(SMSG_UMASK))    // unmask all lanes
   {
-    unmask_all_lanes();
+    lane_msk = B00000000;
     smsg(SMSG_ACKNW);
+    Serial.println(lane_msk, BIN); //dfg
   }
 
   return;
@@ -940,6 +935,7 @@ void initialize(boolean powerup)
     lane_time[n] = 0;
     lane_place[n] = 0;
   }
+  end_cond = (1<<NUM_LANES)-1;
 
   start_time = 0;
   set_status_led();
@@ -961,22 +957,6 @@ void initialize(boolean powerup)
 
   ready_first  = true;
   finish_first  = true;
-
-  return;
-}
-
-
-/*================================================================================*
-  UNMASK ALL LANES
- *================================================================================*/
-void unmask_all_lanes()
-{
-  dbg(fDebug, "unmask all lanes");
-
-  for (int n=0; n<NUM_LANES; n++)
-  {
-    lane_mask[n] = false;
-  }
 
   return;
 }
