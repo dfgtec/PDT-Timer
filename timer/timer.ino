@@ -1,8 +1,8 @@
 /*================================================================================*
-   Pinewood Derby Timer                                Version 3.10 - 12 Dec 2020
+   Pinewood Derby Timer                                Version 3.xx - ?? Feb 2022
    www.dfgtec.com/pdt
 
-   Flexible and affordable Pinewood Derby timer that interfaces with the 
+   Flexible and affordable Pinewood Derby timer that interfaces with the
    following software:
      - PD Test/Tune/Track Utility
      - Grand Prix Race Manager software
@@ -10,22 +10,22 @@
    Refer to the website for setup and usage instructions.
 
 
-   Copyright (C) 2011-2020 David Gadberry
+   Copyright (C) 2011-2022 David Gadberry
 
    This work is licensed under the Creative Commons Attribution-NonCommercial-
-   ShareAlike 3.0 Unported License. To view a copy of this license, visit 
-   http://creativecommons.org/licenses/by-nc-sa/3.0/ or send a letter to 
-   Creative Commons, 444 Castro Street, Suite 900, Mountain View, California, 
+   ShareAlike 3.0 Unported License. To view a copy of this license, visit
+   http://creativecommons.org/licenses/by-nc-sa/3.0/ or send a letter to
+   Creative Commons, 444 Castro Street, Suite 900, Mountain View, California,
    94041, USA.
  *================================================================================*/
 
 /*-----------------------------------------*
   - TIMER CONFIGURATION -
  *-----------------------------------------*/
-#define NUM_LANES    1                 // number of lanes
+#define NUM_LANES    6  //dfg          // number of lanes
 #define GATE_RESET   0                 // Enable closing start gate to reset timer
 
-//#define LED_DISPLAY  1                 // Enable lane place/time displays
+#define LED_DISPLAY  1                 // Enable lane place/time displays
 //#define DUAL_DISP    1                 // dual displays per lane (4 lanes max)
 //#define DUAL_MODE    1                 // dual display mode
 //#define LARGE_DISP   1                 // utilize large Adafruit displays (see website)
@@ -34,6 +34,8 @@
 #define PLACE_DELAY  3                 // Delay (secs) when displaying place/time
 #define MIN_BRIGHT   0                 // minimum display brightness (0-15)
 #define MAX_BRIGHT   15                // maximum display brightness (0-15)
+
+//#define MCU_ESP32    1                 // utilize ESP32 MCU 
 
 /*-----------------------------------------*
   - END -
@@ -49,8 +51,12 @@
 /*-----------------------------------------*
   - static definitions -
  *-----------------------------------------*/
-#define PDT_VERSION  "3.10"            // software version
-#define MAX_LANE     6                 // maximum number of lanes (Uno)
+#define PDT_VERSION  "3.xx"            // software version
+#ifdef MCU_ESP32
+#define MAX_LANE     8                 // maximum number of lanes (ESP32)
+#else
+#define MAX_LANE     6                 //                         (Arduino Uno)
+#endif
 #define MAX_DISP     8                 // maximum number of displays (Adafruit)
 
 #define mREADY       0                 // program modes
@@ -59,11 +65,12 @@
 #define mTEST        3
 
 #define START_TRIP   LOW               // start switch trip condition
+#define LANE_TRIP    HIGH              // lane finish trip condition
 #define NULL_TIME    99.999            // null (non-finish) time
 #define NUM_DIGIT    4                 // timer resolution (# of decimals)
 #define DISP_DIGIT   4                 // total number of display digits
 
-#define PWM_LED_ON   220
+#define PWM_LED_ON   20
 #define PWM_LED_OFF  255
 #define char2int(c) (c - '0')
 
@@ -94,22 +101,38 @@
 #define SMSG_GNUML   'N'               // <- request number of lanes
 #define SMSG_TINFO   'I'               // <- request timer information
 
+#define SMSG_DTEST   'T'               // <- development test function
+
 /*-----------------------------------------*
   - pin assignments -
  *-----------------------------------------*/
+#ifdef MCU_ESP32             // ESP32
+byte BRIGHT_LEV   =  4;                // brightness level
+byte RESET_SWITCH =  2;                // reset switch
+byte STATUS_LED_R = 25;                // status LED (red)
+byte STATUS_LED_B = 27;                // status LED (blue)
+byte STATUS_LED_G = 26;                // status LED (green)
+byte START_GATE   =  5;                // start gate switch
+byte START_SOL    = 23;                // start solenoid
+#else                        // Arduino Uno
 byte BRIGHT_LEV   = A0;                // brightness level
 byte RESET_SWITCH =  8;                // reset switch
 byte STATUS_LED_R =  9;                // status LED (red)
-byte STATUS_LED_B = 10;                // status LED (blue)
-byte STATUS_LED_G = 11;                // status LED (green)
+byte STATUS_LED_B = 11;                // status LED (blue)
+byte STATUS_LED_G = 10;                // status LED (green)
 byte START_GATE   = 12;                // start gate switch
 byte START_SOL    = 13;                // start solenoid
+#endif
 
 //                Display #    1     2     3     4     5     6     7     8
 int  DISP_ADD [MAX_DISP] = {0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77};    // display I2C addresses
 
-//                   Lane #    1     2     3     4     5     6
-byte LANE_DET [MAX_LANE] = {   2,    3,    4,    5,    6,    7};                // finish detection pins
+//                   Lane #    1     2     3     4     5     6     7     8
+#ifdef MCU_ESP32
+byte LANE_DET [MAX_LANE] = {  12,   13,   14,   15,   16,   17,   18,   19};    // finish detection pins (ESP32)
+#else
+byte LANE_DET [MAX_LANE] = {   2,    3,    4,    5,    6,    7};                //                       (Arduino Uno)
+#endif
 
 /*-----------------------------------------*
   - global variables -
@@ -121,7 +144,6 @@ boolean       finish_first;            // first pass in finish state flag
 unsigned long start_time;              // race start time (microseconds)
 unsigned long lane_time  [MAX_LANE];   // lane finish time (microseconds)
 int           lane_place [MAX_LANE];   // lane finish place
-boolean       lane_mask  [MAX_LANE];   // lane mask status
 
 int           serial_data;             // serial data
 byte          mode;                    // current program mode
@@ -151,6 +173,9 @@ Adafruit_7segment disp_mat[MAX_DISP];
 Adafruit_8x8matrix disp_8x8[MAX_DISP];
 #endif
 
+uint32_t lane_sts;
+uint8_t end_cond, lane_cur, lane_msk, lane_end;
+
 void initialize(boolean powerup=false);
 void dbg(int, const char * msg, int val=-999);
 void smsg(char msg, boolean crlf=true);
@@ -168,14 +193,15 @@ void setup()
   pinMode(STATUS_LED_B, OUTPUT);
   pinMode(STATUS_LED_G, OUTPUT);
   pinMode(START_SOL,    OUTPUT);
-  pinMode(RESET_SWITCH, INPUT);
-  pinMode(START_GATE,   INPUT);
+  pinMode(RESET_SWITCH, INPUT_PULLUP);
+  pinMode(START_GATE,   INPUT_PULLUP);
   pinMode(BRIGHT_LEV,   INPUT);
 
-  digitalWrite(RESET_SWITCH, HIGH);    // enable pull-up resistor
-  digitalWrite(START_GATE,   HIGH);    // enable pull-up resistor
-
   digitalWrite(START_SOL, LOW);
+
+#ifdef MCU_ESP32
+  REG_WRITE(GPIO_ENABLE_W1TC_REG, 0xFF << 12);
+#endif
 
 #ifdef LED_DISPLAY
   for (int n=0; n<MAX_DISP; n++)
@@ -197,16 +223,14 @@ void setup()
 
   for (int n=0; n<MAX_LANE; n++)
   {
-    pinMode(LANE_DET[n], INPUT);
-
-    digitalWrite(LANE_DET[n], HIGH);   // enable pull-up resistor
+    pinMode(LANE_DET[n], INPUT_PULLUP);
   }
   set_display_brightness();
 
 /*-----------------------------------------*
   - software setup -
  *-----------------------------------------*/
-  Serial.begin(9600);
+  Serial.begin(9600, SERIAL_8N1);
   smsg(SMSG_POWER);
 
 /*-----------------------------------------*
@@ -222,7 +246,8 @@ void setup()
   - initialize timer -
  *-----------------------------------------*/
   initialize(true);
-  unmask_all_lanes();
+  lane_msk = B00000000;
+
 }
 
 
@@ -288,7 +313,7 @@ void timer_ready_state()
  *================================================================================*/
 void timer_racing_state()
 {
-  int lanes_left, finish_order, lane_status[NUM_LANES];
+  int finish_order;
   unsigned long current_time, last_finish_time;
 
 
@@ -297,49 +322,44 @@ void timer_racing_state()
 
   finish_order = 0;
   last_finish_time = 0;
+  lane_end = lane_msk;
 
-  lanes_left = NUM_LANES;
-  for (int n=0; n<NUM_LANES; n++)
-  {
-    if (lane_mask[n]) lanes_left--;
-  }
-
-  while (lanes_left)
+  while (lane_end < end_cond)
   {
     current_time = micros();
-
-    for (int n=0; n<NUM_LANES; n++) lane_status[n] = bitRead(PIND, LANE_DET[n]);    // read status of all lanes
+#ifdef MCU_ESP32
+    lane_sts = REG_READ(GPIO_IN_REG) >> 12;    // read lane status (ESP32)
+#else
+    lane_sts = PIND >> 2;                      //                  (Arduino Uno)
+#endif
 
     for (int n=0; n<NUM_LANES; n++)
     {
-      if (lane_time[n] == 0 && lane_status[n] == HIGH && !lane_mask[n])    // car has crossed finish line
+      lane_cur = 1 << n;
+
+      if (!(lane_cur & lane_end) && (lane_cur & lane_sts))    // car has crossed finish line
       {
-        lanes_left--;
+        lane_end |= lane_cur;
 
         lane_time[n] = current_time - start_time;
-
         if (lane_time[n] > last_finish_time)
         {
           finish_order++;
           last_finish_time = lane_time[n];
         }
         lane_place[n] = finish_order;
-
         update_display(n, lane_place[n], lane_time[n], SHOW_PLACE);
       }
     }
 
     serial_data = get_serial_data();
-
     if (serial_data == int(SMSG_FORCE) || serial_data == int(SMSG_RESET) || digitalRead(RESET_SWITCH) == LOW)    // force race to end
     {
-      lanes_left = 0;
+      lane_end = end_cond;
       smsg(SMSG_ACKNW);
     }
   }
-
   send_race_results();
-
   mode = mFINISH;
 
   return;
@@ -369,8 +389,8 @@ void timer_finished_state()
 
   if (serial_data == int(SMSG_RSEND))    // resend race data
   {
-      smsg(SMSG_ACKNW);
-      send_race_results();
+    smsg(SMSG_ACKNW);
+    send_race_results();
   }
 
   set_display_brightness();
@@ -391,21 +411,31 @@ void process_general_msgs()
 
   serial_data = get_serial_data();
 
-  if (serial_data == int(SMSG_GVERS))    // get software version
+  if (serial_data == int(SMSG_GVERS))         // get software version
   {
-      sprintf(tmps, "vert=%s", PDT_VERSION);
-      smsg_str(tmps);
+    sprintf(tmps, "vert=%s", PDT_VERSION);
+    smsg_str(tmps);
   }
 
   else if (serial_data == int(SMSG_GNUML))    // get number of lanes
   {
-      sprintf(tmps, "numl=%d", NUM_LANES);
-      smsg_str(tmps);
+    sprintf(tmps, "numl=%d", NUM_LANES);
+    smsg_str(tmps);
   }
 
   else if (serial_data == int(SMSG_TINFO))    // get timer information
   {
-      send_timer_info();
+    send_timer_info();
+  }
+
+  else if (serial_data == int(SMSG_DTEST))    // development test function
+  {
+#ifdef MCU_ESP32
+    uint32_t input = REG_READ(GPIO_IN_REG) >> 12;   // ESP32
+#else
+    uint8_t input = PIND >> 2;                      // Arduino Uno
+#endif
+    Serial.println((uint8_t)input, BIN);
   }
 
   else if (serial_data == int(SMSG_DEBUG))    // toggle debug
@@ -446,17 +476,19 @@ void process_general_msgs()
     lane = serial_data - 48;
     if (lane >= 1 && lane <= NUM_LANES)
     {
-      lane_mask[lane-1] = true;
+      lane_msk |= 1 << (lane-1);
 
       dbg(fDebug, "set mask on lane = ", lane);
     }
     smsg(SMSG_ACKNW);
+    Serial.println(lane_msk, BIN); //dfg
   }
 
   else if (serial_data == int(SMSG_UMASK))    // unmask all lanes
   {
-    unmask_all_lanes();
+    lane_msk = B00000000;
     smsg(SMSG_ACKNW);
+    Serial.println(lane_msk, BIN); //dfg
   }
 
   return;
@@ -468,7 +500,7 @@ void process_general_msgs()
  *================================================================================*/
 void test_pdt_hw()
 {
-  int  lane_status[NUM_LANES];
+  int lane_status[NUM_LANES];
   char ctmp[10];
 
 
@@ -483,9 +515,9 @@ void test_pdt_hw()
   {
     for (int n=0; n<NUM_LANES; n++)
     {
-      lane_status[n] = bitRead(PIND, LANE_DET[n]);    // read status of all lanes
+      lane_status[n] =  digitalRead(LANE_DET[n]);    // read status of all lanes
 
-      if (lane_status[n] == HIGH)
+      if (lane_status[n] == LANE_TRIP)
       {
         update_display(n, msgDark);
       }
@@ -673,9 +705,9 @@ void update_display(int lane, unsigned char msg[])
       disp_8x8[lane+4].setRotation(3);
       disp_8x8[lane+4].setCursor(2, 0);
       if (msg == msgBlank)
-         disp_8x8[lane+4].print(" ");
+        disp_8x8[lane+4].print(" ");
       else
-         disp_8x8[lane+4].print("-");
+        disp_8x8[lane+4].print("-");
     }
 #else
     disp_mat[lane+4].writeDigitRaw(d, msg[d]);
@@ -839,7 +871,7 @@ void set_display_brightness()
   float new_level;
 
 #ifdef LED_DISPLAY
-  new_level = long(1023 - analogRead(BRIGHT_LEV)) / 1023.0F * 15.0F;
+  new_level = long(4095 - analogRead(BRIGHT_LEV)) / 4095.0F * 15.0F;
   new_level = min(new_level, (float)MAX_BRIGHT);
   new_level = max(new_level, (float)MIN_BRIGHT);
 
@@ -933,6 +965,7 @@ void initialize(boolean powerup)
     lane_time[n] = 0;
     lane_place[n] = 0;
   }
+  end_cond = (1<<NUM_LANES)-1;
 
   start_time = 0;
   set_status_led();
@@ -954,22 +987,6 @@ void initialize(boolean powerup)
 
   ready_first  = true;
   finish_first  = true;
-
-  return;
-}
-
-
-/*================================================================================*
-  UNMASK ALL LANES
- *================================================================================*/
-void unmask_all_lanes()
-{
-  dbg(fDebug, "unmask all lanes");
-
-  for (int n=0; n<NUM_LANES; n++)
-  {
-    lane_mask[n] = false;
-  }
 
   return;
 }
@@ -1015,7 +1032,7 @@ void smsg(char msg, boolean crlf)
   {
     Serial.print(msg);
   }
-
+  Serial.flush();
   return;
 }
 
@@ -1033,7 +1050,7 @@ void smsg_str(const char * msg, boolean crlf)
   {
     Serial.print(msg);
   }
-
+  Serial.flush();
   return;
 }
 
@@ -1098,6 +1115,6 @@ void send_timer_info()
   Serial.println(tmps);
 
   Serial.println("-----------------------------");
-
+  Serial.flush();
   return;
 }
