@@ -22,7 +22,7 @@
 /*-----------------------------------------*
   - TIMER CONFIGURATION -
  *-----------------------------------------*/
-#define NUM_LANES    8  //dfg          // number of lanes
+#define NUM_LANES    6  //dfg          // number of lanes
 #define GATE_RESET   0                 // Enable closing start gate to reset timer
 
 #define LED_DISPLAY  1                 // Enable lane place/time displays
@@ -34,6 +34,8 @@
 #define PLACE_DELAY  3                 // Delay (secs) when displaying place/time
 #define MIN_BRIGHT   0                 // minimum display brightness (0-15)
 #define MAX_BRIGHT   15                // maximum display brightness (0-15)
+
+//#define MCU_ESP32    1                 // utilize ESP32 MCU 
 
 /*-----------------------------------------*
   - END -
@@ -50,7 +52,11 @@
   - static definitions -
  *-----------------------------------------*/
 #define PDT_VERSION  "3.xx"            // software version
-#define MAX_LANE     8                 // maximum number of lanes (Uno)
+#ifdef MCU_ESP32
+#define MAX_LANE     8                 // maximum number of lanes (ESP32)
+#else
+#define MAX_LANE     6                 //                         (Arduino Uno)
+#endif
 #define MAX_DISP     8                 // maximum number of displays (Adafruit)
 
 #define mREADY       0                 // program modes
@@ -100,19 +106,33 @@
 /*-----------------------------------------*
   - pin assignments -
  *-----------------------------------------*/
+#ifdef MCU_ESP32             // ESP32
 byte BRIGHT_LEV   =  4;                // brightness level
 byte RESET_SWITCH =  2;                // reset switch
 byte STATUS_LED_R = 25;                // status LED (red)
-byte STATUS_LED_B = 26;                // status LED (blue)
-byte STATUS_LED_G = 27;                // status LED (green)
+byte STATUS_LED_B = 27;                // status LED (blue)
+byte STATUS_LED_G = 26;                // status LED (green)
 byte START_GATE   =  5;                // start gate switch
 byte START_SOL    = 23;                // start solenoid
+#else                        // Arduino Uno
+byte BRIGHT_LEV   = A0;                // brightness level
+byte RESET_SWITCH =  8;                // reset switch
+byte STATUS_LED_R =  9;                // status LED (red)
+byte STATUS_LED_B = 11;                // status LED (blue)
+byte STATUS_LED_G = 10;                // status LED (green)
+byte START_GATE   = 12;                // start gate switch
+byte START_SOL    = 13;                // start solenoid
+#endif
 
 //                Display #    1     2     3     4     5     6     7     8
 int  DISP_ADD [MAX_DISP] = {0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77};    // display I2C addresses
 
 //                   Lane #    1     2     3     4     5     6     7     8
-byte LANE_DET [MAX_DISP] = {  12,   13,   14,   15,   16,   17,   18,   19};    // finish detection pins
+#ifdef MCU_ESP32
+byte LANE_DET [MAX_LANE] = {  12,   13,   14,   15,   16,   17,   18,   19};    // finish detection pins (ESP32)
+#else
+byte LANE_DET [MAX_LANE] = {   2,    3,    4,    5,    6,    7};                //                       (Arduino Uno)
+#endif
 
 /*-----------------------------------------*
   - global variables -
@@ -179,7 +199,9 @@ void setup()
 
   digitalWrite(START_SOL, LOW);
 
+#ifdef MCU_ESP32
   REG_WRITE(GPIO_ENABLE_W1TC_REG, 0xFF << 12);
+#endif
 
 #ifdef LED_DISPLAY
   for (int n=0; n<MAX_DISP; n++)
@@ -305,7 +327,11 @@ void timer_racing_state()
   while (lane_end < end_cond)
   {
     current_time = micros();
-    lane_sts = REG_READ(GPIO_IN_REG) >> 12;    // read lane status
+#ifdef MCU_ESP32
+    lane_sts = REG_READ(GPIO_IN_REG) >> 12;    // read lane status (ESP32)
+#else
+    lane_sts = PIND >> 2;                      //                  (Arduino Uno)
+#endif
 
     for (int n=0; n<NUM_LANES; n++)
     {
@@ -404,8 +430,12 @@ void process_general_msgs()
 
   else if (serial_data == int(SMSG_DTEST))    // development test function
   {
-    uint32_t input = REG_READ(GPIO_IN_REG);
-    Serial.println((uint8_t)(input >> 12), BIN);
+#ifdef MCU_ESP32
+    uint32_t input = REG_READ(GPIO_IN_REG) >> 12;   // ESP32
+#else
+    uint8_t input = PIND >> 2;                      // Arduino Uno
+#endif
+    Serial.println((uint8_t)input, BIN);
   }
 
   else if (serial_data == int(SMSG_DEBUG))    // toggle debug
