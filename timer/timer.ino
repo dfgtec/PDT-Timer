@@ -1,5 +1,5 @@
 /*================================================================================*
-   Pinewood Derby Timer                                Version 3.xx - ?? Feb 2022
+   Pinewood Derby Timer                                Version 3.20 - 13 Feb 2022
    www.dfgtec.com/pdt
 
    Flexible and affordable Pinewood Derby timer that interfaces with the
@@ -22,10 +22,10 @@
 /*-----------------------------------------*
   - TIMER CONFIGURATION -
  *-----------------------------------------*/
-#define NUM_LANES    6  //dfg          // number of lanes
+#define NUM_LANES    1                 // number of lanes
 #define GATE_RESET   0                 // Enable closing start gate to reset timer
 
-#define LED_DISPLAY  1                 // Enable lane place/time displays
+//#define LED_DISPLAY  1                 // Enable lane place/time displays
 //#define DUAL_DISP    1                 // dual displays per lane (4 lanes max)
 //#define DUAL_MODE    1                 // dual display mode
 //#define LARGE_DISP   1                 // utilize large Adafruit displays (see website)
@@ -51,7 +51,7 @@
 /*-----------------------------------------*
   - static definitions -
  *-----------------------------------------*/
-#define PDT_VERSION  "3.xx"            // software version
+#define PDT_VERSION  "3.20"            // software version
 #ifdef MCU_ESP32
 #define MAX_LANE     8                 // maximum number of lanes (ESP32)
 #else
@@ -144,6 +144,8 @@ boolean       finish_first;            // first pass in finish state flag
 unsigned long start_time;              // race start time (microseconds)
 unsigned long lane_time  [MAX_LANE];   // lane finish time (microseconds)
 int           lane_place [MAX_LANE];   // lane finish place
+uint8_t       lane_msk;                // lane mask status
+uint8_t       end_cond;                // race end condition
 
 int           serial_data;             // serial data
 byte          mode;                    // current program mode
@@ -172,9 +174,6 @@ Adafruit_7segment disp_mat[MAX_DISP];
 #ifdef DUAL_MODE                       // uses 8x8 matrix displays
 Adafruit_8x8matrix disp_8x8[MAX_DISP];
 #endif
-
-uint32_t lane_sts;
-uint8_t end_cond, lane_cur, lane_msk, lane_end;
 
 void initialize(boolean powerup=false);
 void dbg(int, const char * msg, int val=-999);
@@ -315,6 +314,8 @@ void timer_racing_state()
 {
   int finish_order;
   unsigned long current_time, last_finish_time;
+  uint32_t lane_sts;
+  uint8_t lane_cur, lane_end;
 
 
   set_status_led();
@@ -481,14 +482,12 @@ void process_general_msgs()
       dbg(fDebug, "set mask on lane = ", lane);
     }
     smsg(SMSG_ACKNW);
-    Serial.println(lane_msk, BIN); //dfg
   }
 
   else if (serial_data == int(SMSG_UMASK))    // unmask all lanes
   {
     lane_msk = B00000000;
     smsg(SMSG_ACKNW);
-    Serial.println(lane_msk, BIN); //dfg
   }
 
   return;
