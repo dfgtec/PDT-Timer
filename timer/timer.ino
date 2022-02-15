@@ -1,5 +1,5 @@
 /*================================================================================*
-   Pinewood Derby Timer                                Version 3.20 - 13 Feb 2022
+   Pinewood Derby Timer                                Version 3.21 - 15 Feb 2022
    www.dfgtec.com/pdt
 
    Flexible and affordable Pinewood Derby timer that interfaces with the
@@ -51,7 +51,7 @@
 /*-----------------------------------------*
   - static definitions -
  *-----------------------------------------*/
-#define PDT_VERSION  "3.20"            // software version
+#define PDT_VERSION  "3.21"            // software version
 #ifdef MCU_ESP32
 #define MAX_LANE     8                 // maximum number of lanes (ESP32)
 #else
@@ -333,6 +333,7 @@ void timer_racing_state()
 #else
     lane_sts = PIND >> 2;                      //                  (Arduino Uno)
 #endif
+    if (!LANE_TRIP) lane_sts = ~lane_sts;      // flip status bits if configured with LANE_TRIP = LOW
 
     for (int n=0; n<NUM_LANES; n++)
     {
@@ -436,6 +437,7 @@ void process_general_msgs()
 #else
     uint8_t input = PIND >> 2;                      // Arduino Uno
 #endif
+    if (!LANE_TRIP) input = ~input;      // flip status bits if configured with LANE_TRIP = LOW
     Serial.println((uint8_t)input, BIN);
   }
 
