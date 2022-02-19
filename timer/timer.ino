@@ -1,5 +1,5 @@
 /*================================================================================*
-   Pinewood Derby Timer                                Version 3.21 - 15 Feb 2022
+   Pinewood Derby Timer                                Version 3.xx - ?? ??? 2022
    www.dfgtec.com/pdt
 
    Flexible and affordable Pinewood Derby timer that interfaces with the
@@ -22,11 +22,11 @@
 /*-----------------------------------------*
   - TIMER CONFIGURATION -
  *-----------------------------------------*/
-#define NUM_LANES    1                 // number of lanes
+#define NUM_LANES    2                 // number of lanes
 #define GATE_RESET   0                 // Enable closing start gate to reset timer
 
-//#define LED_DISPLAY  1                 // Enable lane place/time displays
-//#define DUAL_DISP    1                 // dual displays per lane (4 lanes max)
+#define LED_DISPLAY  1                 // Enable lane place/time displays
+#define DUAL_DISP    1                 // dual displays per lane (4 lanes max)
 //#define DUAL_MODE    1                 // dual display mode
 //#define LARGE_DISP   1                 // utilize large Adafruit displays (see website)
 
@@ -36,6 +36,25 @@
 #define MAX_BRIGHT   15                // maximum display brightness (0-15)
 
 //#define MCU_ESP32    1                 // utilize ESP32 MCU 
+
+#define dtNONE 0
+#define dt8x8m 1
+#define dt7seg 2
+#define dtL7sg 3
+
+static const uint8_t numMasks[] = {
+    0b00111111, // 0
+    0b00000110, // 1
+    0b01011011, // 2
+    0b01001111, // 3
+    0b01100110, // 4
+    0b01101101, // 5
+    0b01111101, // 6
+    0b00000111, // 7
+    0b01111111, // 8
+    0b01101111, // 9
+};
+
 
 /*-----------------------------------------*
   - END -
@@ -51,7 +70,7 @@
 /*-----------------------------------------*
   - static definitions -
  *-----------------------------------------*/
-#define PDT_VERSION  "3.21"            // software version
+#define PDT_VERSION  "3.xx"            // software version
 #ifdef MCU_ESP32
 #define MAX_LANE     8                 // maximum number of lanes (ESP32)
 #else
@@ -152,17 +171,11 @@ byte          mode;                    // current program mode
 
 float         display_level = -1.0;    // display brightness level
 
-#ifdef LARGE_DISP
-unsigned char msgGateC[] = {0x6D, 0x41, 0x00, 0x0F, 0x07};  // S=CL
-unsigned char msgGateO[] = {0x6D, 0x41, 0x00, 0x3F, 0x5E};  // S=OP
-unsigned char msgLight[] = {0x41, 0x41, 0x00, 0x00, 0x07};  // == L
-unsigned char msgDark [] = {0x41, 0x41, 0x00, 0x00, 0x73};  // == d
-#else
+unsigned char msgIndy [] = {0x06, 0x54, 0x00, 0x5E, 0x6E};  // S=CL
 unsigned char msgGateC[] = {0x6D, 0x48, 0x00, 0x39, 0x38};  // S=CL
 unsigned char msgGateO[] = {0x6D, 0x48, 0x00, 0x3F, 0x73};  // S=OP
 unsigned char msgLight[] = {0x48, 0x48, 0x00, 0x00, 0x38};  // == L
 unsigned char msgDark [] = {0x48, 0x48, 0x00, 0x00, 0x5e};  // == d
-#endif
 unsigned char msgDashT[] = {0x40, 0x40, 0x00, 0x40, 0x40};  // ----
 unsigned char msgDashL[] = {0x00, 0x00, 0x00, 0x40, 0x00};  //   -
 unsigned char msgBlank[] = {0x00, 0x00, 0x00, 0x00, 0x00};  // (blank)
@@ -171,9 +184,9 @@ unsigned char msgBlank[] = {0x00, 0x00, 0x00, 0x00, 0x00};  // (blank)
 Adafruit_7segment disp_mat[MAX_DISP];
 #endif
 
-#ifdef DUAL_MODE                       // uses 8x8 matrix displays
+//#ifdef DUAL_MODE                       // uses 8x8 matrix displays
 Adafruit_8x8matrix disp_8x8[MAX_DISP];
-#endif
+//#endif
 
 void initialize(boolean powerup=false);
 void dbg(int, const char * msg, int val=-999);
@@ -211,12 +224,14 @@ void setup()
     disp_mat[n].drawColon(false);
     disp_mat[n].writeDisplay();
 
-#ifdef DUAL_MODE
+//#ifdef DUAL_MODE
     disp_8x8[n] = Adafruit_8x8matrix();
     disp_8x8[n].begin(DISP_ADD[n]);
+    disp_8x8[n].setTextSize(1);
+    disp_8x8[n].setRotation(3);
     disp_8x8[n].clear();
     disp_8x8[n].writeDisplay();
-#endif
+//#endif
   }
 #endif
 
@@ -432,6 +447,15 @@ void process_general_msgs()
 
   else if (serial_data == int(SMSG_DTEST))    // development test function
   {
+//dfg
+    display_place(0, dt8x8m, 4);
+    display_place(1, dt8x8m, 8);
+    display_place(4, dt7seg, 4);
+    display_place(5, dtL7sg, 4);
+    delay(10000);
+
+
+
 #ifdef MCU_ESP32
     uint32_t input = REG_READ(GPIO_IN_REG) >> 12;   // ESP32
 #else
@@ -1117,5 +1141,156 @@ void send_timer_info()
 
   Serial.println("-----------------------------");
   Serial.flush();
+  return;
+}
+
+
+//dfg
+
+/*================================================================================*
+  SEND MESSAGE TO DISPLAY
+ *================================================================================*/
+void display_msg(int pos, int type, unsigned char msg[])
+{
+#ifndef LED_DISPLAY
+  return;
+#endif
+
+  if (type >= dt7seg)     
+    disp_mat[pos].clear();
+  else
+    disp_8x8[pos].clear();
+
+  for (int d=0; d<=4; d++)
+  {
+    if (d == 3 && type == dt8x8m)     
+    {
+      disp_8x8[pos].setCursor(2, 0);
+      if (msg[d] == 0x40)
+        disp_8x8[pos].print("-");
+      else
+        disp_8x8[pos].print(" ");
+    }
+    else if (type == dt7seg)
+    {
+      disp_mat[pos].writeDigitRaw(d, msg[d]);
+    }
+    else if (type == dtL7sg)
+    {
+      int rc = flip_char(msg[d]);
+      disp_mat[pos].writeDigitRaw(4-d, rc);
+    }
+  }
+
+  if (type >= dt7seg)     
+    disp_mat[pos].writeDisplay();
+  else
+    disp_8x8[pos].writeDisplay();
+
+  return;
+}
+
+uint8_t flip_char(uint8_t mc)
+{
+  uint8_t fc = (B11000000 & mc) + ((B00111000 & mc)>>3) + ((B00000111 & mc)<<3);
+  return fc;
+}
+
+
+/*================================================================================*
+  SEND MESSAGE TO DISPLAY
+ *================================================================================*/
+void display_place(int pos, int type, int place)
+{
+#ifndef LED_DISPLAY
+  return;
+#endif
+  char cplace[4];
+
+  if (type >= dt7seg)     
+    disp_mat[pos].clear();
+  else
+    disp_8x8[pos].clear();
+
+  if (type == dt8x8m)     
+  {
+    disp_8x8[pos].setCursor(2, 0);
+    sprintf(cplace, "%1d", place);
+    disp_8x8[pos].print(cplace[0]);
+  }
+  else if (type == dt7seg)
+  {
+    disp_mat[pos].writeDigitNum(3, place, false);
+  }
+  else if (type == dtL7sg)
+  {
+    int rc = flip_char(numMasks[place]);
+    disp_mat[pos].writeDigitRaw(1, rc);
+  }
+
+  if (type >= dt7seg)     
+    disp_mat[pos].writeDisplay();
+  else
+    disp_8x8[pos].writeDisplay();
+
+  return;
+}
+
+
+/*================================================================================*
+  UPDATE LANE PLACE/TIME DISPLAY
+ *================================================================================*/
+void display_time(int pos, int type, unsigned long dtime)
+{
+#ifndef LED_DISPLAY
+  return;
+#endif
+  char ctime[10];
+  boolean showdot=false;
+
+  if (type < dt7seg) return;
+
+  disp_mat[pos].clear();
+  disp_mat[pos].drawColon(false);
+
+  // calculate seconds and convert to string
+  dtostrf((double)(dtime / (double)1000000.0), (DISP_DIGIT+1), DISP_DIGIT, ctime);
+
+  int c = 0;
+  for (int d = 0; d<DISP_DIGIT; d++)
+  {
+    if (type == dt7seg) showdot = (ctime[c + 1] == '.');
+    int dignum = char2int(ctime[c]);
+
+    if (type == dt7seg)
+      disp_mat[pos].writeDigitNum(d + int(d / 2), dignum, showdot);    // time
+    else
+    {
+      int rc = flip_char(numMasks[dignum]);
+      disp_mat[pos].writeDigitRaw(d + int(d / 2), rc);    // time
+    }
+
+    c++; if (ctime[c] == '.') c++;
+  }
+  disp_mat[pos].writeDisplay();
+
+  return;
+}
+
+
+/*================================================================================*
+  SET LANE DISPLAY BRIGHTNESS
+ *================================================================================*/
+void display_brightness(int pos, int type, int level)
+{
+#ifndef LED_DISPLAY
+  return;
+#endif
+
+  if (type >= dt7seg)     
+    disp_mat[pos].setBrightness(level);
+  else
+    disp_8x8[pos].setBrightness(level);
+
   return;
 }
