@@ -37,12 +37,15 @@
 
 //#define MCU_ESP32    1                 // utilize ESP32 MCU 
 
-#define dtNONE 0
-#define dt8x8m 1
-#define dt7seg 2
-#define dtL7sg 3
+const uint8_t dtNONE = 0;
+const uint8_t dt8x8m = 1;
+const uint8_t dt7seg = 2;
+const uint8_t dtL7sg = 3;
 
-static const uint8_t numMasks[] = {
+const uint8_t dBANK1 = dt8x8m;
+const uint8_t dBANK2 = dt7seg;
+
+const uint8_t numMasks[] = {
     0b00111111, // 0
     0b00000110, // 1
     0b01011011, // 2
@@ -54,6 +57,7 @@ static const uint8_t numMasks[] = {
     0b01111111, // 8
     0b01101111, // 9
 };
+unsigned long tstart, tstop, tdelta, tpoint[10];
 
 
 /*-----------------------------------------*
@@ -171,14 +175,14 @@ byte          mode;                    // current program mode
 
 float         display_level = -1.0;    // display brightness level
 
-unsigned char msgIndy [] = {0x06, 0x54, 0x00, 0x5E, 0x6E};  // S=CL
-unsigned char msgGateC[] = {0x6D, 0x48, 0x00, 0x39, 0x38};  // S=CL
-unsigned char msgGateO[] = {0x6D, 0x48, 0x00, 0x3F, 0x73};  // S=OP
-unsigned char msgLight[] = {0x48, 0x48, 0x00, 0x00, 0x38};  // == L
-unsigned char msgDark [] = {0x48, 0x48, 0x00, 0x00, 0x5e};  // == d
-unsigned char msgDashT[] = {0x40, 0x40, 0x00, 0x40, 0x40};  // ----
-unsigned char msgDashL[] = {0x00, 0x00, 0x00, 0x40, 0x00};  //   -
-unsigned char msgBlank[] = {0x00, 0x00, 0x00, 0x00, 0x00};  // (blank)
+uint8_t msgIndy [] = {0x06, 0x54, 0x00, 0x5E, 0x6E};  // Indy    //dfg
+uint8_t msgGateC[] = {0x6D, 0x48, 0x00, 0x39, 0x38};  // S=CL
+uint8_t msgGateO[] = {0x6D, 0x48, 0x00, 0x3F, 0x73};  // S=OP
+uint8_t msgLight[] = {0x48, 0x48, 0x00, 0x38, 0x38};  // ==LL
+uint8_t msgDark [] = {0x48, 0x48, 0x00, 0x5e, 0x5e};  // ==dd
+uint8_t msgDashT[] = {0x40, 0x40, 0x00, 0x40, 0x40};  // ----
+uint8_t msgDashL[] = {0x00, 0x00, 0x00, 0x40, 0x00};  //   -
+uint8_t msgBlank[] = {0x00, 0x00, 0x00, 0x00, 0x00};  // (blank)
 
 #ifdef LED_DISPLAY                     // LED display control
 Adafruit_7segment disp_mat[MAX_DISP];
@@ -192,6 +196,7 @@ void initialize(boolean powerup=false);
 void dbg(int, const char * msg, int val=-999);
 void smsg(char msg, boolean crlf=true);
 void smsg_str(const char * msg, boolean crlf=true);
+void update_display(uint8_t pos, uint8_t msgL[], uint8_t msgS[]=msgBlank);
 
 /*================================================================================*
   SETUP TIMER
@@ -215,31 +220,13 @@ void setup()
   REG_WRITE(GPIO_ENABLE_W1TC_REG, 0xFF << 12);
 #endif
 
-#ifdef LED_DISPLAY
-  for (int n=0; n<MAX_DISP; n++)
-  {
-    disp_mat[n] = Adafruit_7segment();
-    disp_mat[n].begin(DISP_ADD[n]);
-    disp_mat[n].clear();
-    disp_mat[n].drawColon(false);
-    disp_mat[n].writeDisplay();
-
-//#ifdef DUAL_MODE
-    disp_8x8[n] = Adafruit_8x8matrix();
-    disp_8x8[n].begin(DISP_ADD[n]);
-    disp_8x8[n].setTextSize(1);
-    disp_8x8[n].setRotation(3);
-    disp_8x8[n].clear();
-    disp_8x8[n].writeDisplay();
-//#endif
-  }
-#endif
+  display_init();
 
   for (int n=0; n<MAX_LANE; n++)
   {
     pinMode(LANE_DET[n], INPUT_PULLUP);
   }
-  set_display_brightness();
+  read_brightness_value();
 
 /*-----------------------------------------*
   - software setup -
@@ -331,6 +318,8 @@ void timer_racing_state()
   unsigned long current_time, last_finish_time;
   uint32_t lane_sts;
   uint8_t lane_cur, lane_end;
+  boolean tfirst=true; //dfg
+  int t=0; //dfg
 
 
   set_status_led();
@@ -342,6 +331,17 @@ void timer_racing_state()
 
   while (lane_end < end_cond)
   {
+    if (tfirst)
+    {
+      test_point(t++);
+
+      if (t > 5)
+      {
+        tfirst = false;
+        test_point_print();
+      }
+    }
+
     current_time = micros();
 #ifdef MCU_ESP32
     lane_sts = REG_READ(GPIO_IN_REG) >> 12;    // read lane status (ESP32)
@@ -365,7 +365,7 @@ void timer_racing_state()
           last_finish_time = lane_time[n];
         }
         lane_place[n] = finish_order;
-        update_display(n, lane_place[n], lane_time[n], SHOW_PLACE);
+        update_display(n, lane_place[n], lane_time[n]);
       }
     }
 
@@ -410,8 +410,8 @@ void timer_finished_state()
     send_race_results();
   }
 
-  set_display_brightness();
-  display_race_results();
+  read_brightness_value();
+//  display_race_results();
 
   return;
 }
@@ -448,11 +448,20 @@ void process_general_msgs()
   else if (serial_data == int(SMSG_DTEST))    // development test function
   {
 //dfg
-    display_place(0, dt8x8m, 4);
-    display_place(1, dt8x8m, 8);
-    display_place(4, dt7seg, 4);
-    display_place(5, dtL7sg, 4);
-    delay(10000);
+    test_start();
+    update_display(0, 2, 1234567);
+    test_stop();
+
+    test_start();
+    update_display(1, 8, 1234567);
+    test_stop();
+    delay(3000);
+
+    test_start();
+    update_display(0, msgIndy);
+    test_stop();
+
+    delay(5000);
 
 
 
@@ -519,6 +528,43 @@ void process_general_msgs()
   return;
 }
 
+//dfg
+void test_start()
+{
+    tstart = micros();
+}
+void test_stop()
+{
+    tstop = micros();
+    tdelta = tstop-tstart;
+    Serial.print("d time: ");
+    Serial.println(tdelta, 8);
+}
+void test_point(int cnt)
+{
+    tpoint[cnt] = micros();
+}
+
+void test_point_print()
+{
+    Serial.println("point times: ");
+    for (int n=0; n<5; n++)
+    {
+      if (n==0)
+      {
+        Serial.print("   ");
+        Serial.println(tpoint[n], 8);
+      }
+      else
+      {
+        tstop=tpoint[n]-tpoint[n-1];
+        Serial.print("   ");
+        Serial.print(tpoint[n], 8);
+        Serial.print("   ");
+        Serial.println(tstop, 8);
+      }
+    }
+}
 
 /*================================================================================*
   TEST PDT FINISH DETECTION HARDWARE
@@ -538,6 +584,8 @@ void test_pdt_hw()
  *-----------------------------------------*/
   while(true)
   {
+    read_brightness_value();
+
     for (int n=0; n<NUM_LANES; n++)
     {
       lane_status[n] =  digitalRead(LANE_DET[n]);    // read status of all lanes
@@ -566,6 +614,8 @@ void test_pdt_hw()
  *-----------------------------------------*/
   while(true)
   {
+    read_brightness_value();
+
     if (digitalRead(START_GATE) == START_TRIP)
     {
       update_display(0, msgGateO);
@@ -589,45 +639,13 @@ void test_pdt_hw()
  *-----------------------------------------*/
   while(true)
   {
-#ifdef LED_DISPLAY
-    set_display_brightness();
+    read_brightness_value();
 
     for (int n=0; n<NUM_LANES; n++)
     {
-      sprintf(ctmp,"%d%03d", (n+1), (int)display_level);
-
-      disp_mat[n].clear();
-
-      disp_mat[n].writeDigitNum(0, char2int(ctmp[0]), false);
-      disp_mat[n].writeDigitNum(1, char2int(ctmp[1]), false);
-      disp_mat[n].writeDigitNum(3, char2int(ctmp[2]), false);
-      disp_mat[n].writeDigitNum(4, char2int(ctmp[3]), false);
-
-      disp_mat[n].drawColon(false);
-      disp_mat[n].writeDisplay();
-
-#ifdef DUAL_DISP
-#ifdef DUAL_MODE
-      disp_8x8[n+4].clear();
-      disp_8x8[n+4].setTextSize(1);
-      disp_8x8[n+4].setRotation(3);
-      disp_8x8[n+4].setCursor(2, 0);
-      disp_8x8[n+4].print("X");
-      disp_8x8[n+4].writeDisplay();
-#else
-      disp_mat[n+4].clear();
-
-      disp_mat[n+4].writeDigitNum(0, char2int(ctmp[0]), false);
-      disp_mat[n+4].writeDigitNum(1, char2int(ctmp[1]), false);
-      disp_mat[n+4].writeDigitNum(3, char2int(ctmp[2]), false);
-      disp_mat[n+4].writeDigitNum(4, char2int(ctmp[3]), false);
-
-      disp_mat[n+4].drawColon(false);
-      disp_mat[n+4].writeDisplay();
-#endif
-#endif
+      unsigned long ttime = (unsigned long)display_level*1000000+(unsigned long)display_level*10000;
+      update_display(n, n+1, ttime);
     }
-#endif
 
     if (digitalRead(RESET_SWITCH) == LOW)  // break out of this test
     {
@@ -692,174 +710,12 @@ void display_race_results()
 
     for (int n=0; n<NUM_LANES; n++)
     {
-      update_display(n, lane_place[n], lane_time[n], display_mode);
+      update_display(n, lane_place[n], lane_time[n]);
     }
 
     display_mode = !display_mode;
     last_display_update = now;
   }
-
-  return;
-}
-
-
-/*================================================================================*
-  SEND MESSAGE TO DISPLAY
- *================================================================================*/
-void update_display(int lane, unsigned char msg[])
-{
-
-#ifdef LED_DISPLAY
-  disp_mat[lane].clear();
-#ifdef DUAL_DISP
-#ifdef DUAL_MODE
-  disp_8x8[lane+4].clear();
-#else
-  disp_mat[lane+4].clear();
-#endif
-#endif
-
-  for (int d = 0; d<=4; d++)
-  {
-    disp_mat[lane].writeDigitRaw(d, msg[d]);
-#ifdef DUAL_DISP
-#ifdef DUAL_MODE
-    if (d == 3)
-    {
-      disp_8x8[lane+4].setTextSize(1);
-      disp_8x8[lane+4].setRotation(3);
-      disp_8x8[lane+4].setCursor(2, 0);
-      if (msg == msgBlank)
-        disp_8x8[lane+4].print(" ");
-      else
-        disp_8x8[lane+4].print("-");
-    }
-#else
-    disp_mat[lane+4].writeDigitRaw(d, msg[d]);
-#endif
-#endif
-  }
-
-  disp_mat[lane].writeDisplay();
-#ifdef DUAL_DISP
-#ifdef DUAL_MODE
-  disp_8x8[lane+4].writeDisplay();
-#else
-  disp_mat[lane+4].writeDisplay();
-#endif
-#endif
-#endif
-
-  return;
-}
-
-
-/*================================================================================*
-  UPDATE LANE PLACE/TIME DISPLAY
- *================================================================================*/
-void update_display(int lane, int display_place, unsigned long display_time, int display_mode)
-{
-  int c;
-  char ctime[10], cplace[4];
-  double display_time_sec;
-  boolean showdot;
-
-//  dbg(fDebug, "led: lane = ", lane);
-//  dbg(fDebug, "led: plce = ", display_place);
-//  dbg(fDebug, "led: time = ", display_time);
-
-#ifdef LED_DISPLAY
-  if (display_mode)
-  {
-    if (display_place > 0)  // show place order
-    {
-      sprintf(cplace,"%1d", display_place);
-
-      disp_mat[lane].clear();
-      disp_mat[lane].drawColon(false);
-      disp_mat[lane].writeDigitNum(3, char2int(cplace[0]), false);
-      disp_mat[lane].writeDisplay();
-
-#ifdef DUAL_DISP
-      disp_mat[lane+4].clear();
-      disp_mat[lane+4].drawColon(false);
-      disp_mat[lane+4].writeDigitNum(3, char2int(cplace[0]), false);
-      disp_mat[lane+4].writeDisplay();
-#endif
-    }
-    else  // did not finish
-    {
-      update_display(lane, msgDashL);
-    }
-  }
-  else                      // show finish time
-  {
-    if (display_time > 0)
-    {
-      disp_mat[lane].clear();
-      disp_mat[lane].drawColon(false);
-
-#ifdef DUAL_DISP
-#ifdef DUAL_MODE
-      disp_8x8[lane+4].clear();
-      disp_8x8[lane+4].setTextSize(1);
-      disp_8x8[lane+4].setRotation(3);
-      disp_8x8[lane+4].setCursor(2, 0);
-#else
-      disp_mat[lane+4].clear();
-      disp_mat[lane+4].drawColon(false);
-#endif
-#endif
-
-      display_time_sec = (double)(display_time / (double)1000000.0);    // elapsed time (seconds)
-      dtostrf(display_time_sec, (DISP_DIGIT+1), DISP_DIGIT, ctime);     // convert to string
-
-//      Serial.print("ctime = ["); Serial.print(ctime); Serial.println("]");
-      c = 0;
-      for (int d = 0; d<DISP_DIGIT; d++)
-      {
-#ifdef LARGE_DISP
-        showdot = false;
-#else
-        showdot = (ctime[c + 1] == '.');
-#endif
-        disp_mat[lane].writeDigitNum(d + int(d / 2), char2int(ctime[c]), showdot);    // time
-#ifdef DUAL_DISP
-#ifdef DUAL_MODE
-        sprintf(cplace,"%1d", display_place);
-        disp_8x8[lane+4].print(cplace[0]);
-#else
-        disp_mat[lane+4].writeDigitNum(d + int(d / 2), char2int(ctime[c]), showdot);    // time
-#endif
-#endif
-
-        c++; if (ctime[c] == '.') c++;
-      }
-
-#ifdef LARGE_DISP
-      disp_mat[lane].writeDigitRaw(2, 16);
-#ifdef DUAL_DISP
-#ifndef DUAL_MODE
-      disp_mat[lane+4].writeDigitRaw(2, 16);
-#endif
-#endif
-#endif
-
-      disp_mat[lane].writeDisplay();
-#ifdef DUAL_DISP
-#ifdef DUAL_MODE
-      disp_8x8[lane+4].writeDisplay();
-#else
-      disp_mat[lane+4].writeDisplay();
-#endif
-#endif
-    }
-    else  // did not finish
-    {
-      update_display(lane, msgDashT);
-    }
-  }
-#endif
 
   return;
 }
@@ -876,11 +732,11 @@ void clear_displays()
   {
     if (mode == mRACING || mode == mTEST)
     {
-      update_display(n, msgBlank);     // racing
+      update_display(n, msgBlank);           // racing
     }
     else
     {
-      update_display(n, msgDashT);     // ready
+      update_display(n, msgDashT, msgDashT); // ready
     }
   }
 
@@ -891,34 +747,21 @@ void clear_displays()
 /*================================================================================*
   SET LANE DISPLAY BRIGHTNESS
  *================================================================================*/
-void set_display_brightness()
+void read_brightness_value()
 {
+#ifndef LED_DISPLAY
+  return;
+#endif
   float new_level;
 
-#ifdef LED_DISPLAY
-  new_level = long(4095 - analogRead(BRIGHT_LEV)) / 4095.0F * 15.0F;
-  new_level = min(new_level, (float)MAX_BRIGHT);
-  new_level = max(new_level, (float)MIN_BRIGHT);
+  new_level = long(1023 - analogRead(BRIGHT_LEV)) / 1023.0F * 15.0F;
+  new_level = constrain(new_level, (float)MIN_BRIGHT, (float)MAX_BRIGHT);
 
   if (fabs(new_level - display_level) > 0.3F)    // deadband to prevent flickering
   {                                              // between levels
-    dbg(fDebug, "led: BRIGHT");
-
     display_level = new_level;
-
-    for (int n=0; n<NUM_LANES; n++)
-    {
-      disp_mat[n].setBrightness((int)display_level);
-#ifdef DUAL_DISP
-#ifdef DUAL_MODE
-      disp_8x8[n+4].setBrightness((int)display_level);
-#else
-      disp_mat[n+4].setBrightness((int)display_level);
-#endif
-#endif
-    }
+    set_display_brightness(display_level);
   }
-#endif
 
   return;
 }
@@ -1145,12 +988,33 @@ void send_timer_info()
 }
 
 
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
+/*================================================================================*/
 //dfg
 
 /*================================================================================*
   SEND MESSAGE TO DISPLAY
  *================================================================================*/
-void display_msg(int pos, int type, unsigned char msg[])
+void display_msg(uint8_t pos, uint8_t type, uint8_t msg[])
 {
 #ifndef LED_DISPLAY
   return;
@@ -1161,7 +1025,7 @@ void display_msg(int pos, int type, unsigned char msg[])
   else
     disp_8x8[pos].clear();
 
-  for (int d=0; d<=4; d++)
+  for (uint8_t d=0; d<=4; d++)
   {
     if (d == 3 && type == dt8x8m)     
     {
@@ -1177,7 +1041,7 @@ void display_msg(int pos, int type, unsigned char msg[])
     }
     else if (type == dtL7sg)
     {
-      int rc = flip_char(msg[d]);
+      uint8_t rc = flip_char(msg[d]);
       disp_mat[pos].writeDigitRaw(4-d, rc);
     }
   }
@@ -1190,17 +1054,11 @@ void display_msg(int pos, int type, unsigned char msg[])
   return;
 }
 
-uint8_t flip_char(uint8_t mc)
-{
-  uint8_t fc = (B11000000 & mc) + ((B00111000 & mc)>>3) + ((B00000111 & mc)<<3);
-  return fc;
-}
-
 
 /*================================================================================*
   SEND MESSAGE TO DISPLAY
  *================================================================================*/
-void display_place(int pos, int type, int place)
+void display_place(uint8_t pos, uint8_t type, uint8_t place)
 {
 #ifndef LED_DISPLAY
   return;
@@ -1224,7 +1082,7 @@ void display_place(int pos, int type, int place)
   }
   else if (type == dtL7sg)
   {
-    int rc = flip_char(numMasks[place]);
+    uint8_t rc = flip_char(numMasks[place]);
     disp_mat[pos].writeDigitRaw(1, rc);
   }
 
@@ -1240,7 +1098,7 @@ void display_place(int pos, int type, int place)
 /*================================================================================*
   UPDATE LANE PLACE/TIME DISPLAY
  *================================================================================*/
-void display_time(int pos, int type, unsigned long dtime)
+void display_time(uint8_t pos, uint8_t type, unsigned long dtime)
 {
 #ifndef LED_DISPLAY
   return;
@@ -1252,22 +1110,25 @@ void display_time(int pos, int type, unsigned long dtime)
 
   disp_mat[pos].clear();
   disp_mat[pos].drawColon(false);
+  if (type == dtL7sg) disp_mat[pos].writeDigitRaw(2, 16);  // ? dot on large display
 
   // calculate seconds and convert to string
   dtostrf((double)(dtime / (double)1000000.0), (DISP_DIGIT+1), DISP_DIGIT, ctime);
 
-  int c = 0;
-  for (int d = 0; d<DISP_DIGIT; d++)
+  uint8_t c = 0;
+  for (uint8_t d=0; d<DISP_DIGIT; d++)
   {
-    if (type == dt7seg) showdot = (ctime[c + 1] == '.');
-    int dignum = char2int(ctime[c]);
+    uint8_t dignum = char2int(ctime[c]);
 
     if (type == dt7seg)
-      disp_mat[pos].writeDigitNum(d + int(d / 2), dignum, showdot);    // time
+    {
+      showdot = (ctime[c+1] == '.');
+      disp_mat[pos].writeDigitNum(d+(uint8_t)(d/2), dignum, showdot);    // time
+    }
     else
     {
-      int rc = flip_char(numMasks[dignum]);
-      disp_mat[pos].writeDigitRaw(d + int(d / 2), rc);    // time
+      uint8_t rc = flip_char(numMasks[dignum]);
+      disp_mat[pos].writeDigitRaw(4-(d+(uint8_t)(d/2)), rc);    // time
     }
 
     c++; if (ctime[c] == '.') c++;
@@ -1281,16 +1142,138 @@ void display_time(int pos, int type, unsigned long dtime)
 /*================================================================================*
   SET LANE DISPLAY BRIGHTNESS
  *================================================================================*/
-void display_brightness(int pos, int type, int level)
+void set_display_brightness(uint8_t level)
 {
 #ifndef LED_DISPLAY
   return;
 #endif
 
-  if (type >= dt7seg)     
-    disp_mat[pos].setBrightness(level);
-  else
-    disp_8x8[pos].setBrightness(level);
+  for (uint8_t n=0; n<NUM_LANES; n++)
+  {
+    switch (dBANK1)
+    {
+      case dt8x8m:
+        disp_8x8[n].setBrightness(level);
+        break;
+
+      case dt7seg:
+      case dtL7sg:
+        disp_mat[n].setBrightness(level);
+        break;
+    }
+  
+    switch (dBANK2)
+    {
+      case dt8x8m:
+        disp_8x8[n+4].setBrightness(level);
+        break;
+  
+    case dt7seg:
+    case dtL7sg:
+        disp_mat[n+4].setBrightness(level);
+        break;
+    }
+  }
+  return;
+}
+
+
+/*================================================================================*
+  INITIALIZE DISPLAYS
+ *================================================================================*/
+void display_init()
+{
+#ifndef LED_DISPLAY
+  return;
+#endif
+
+  for (uint8_t n=0; n<MAX_DISP; n++)
+  {
+    disp_mat[n] = Adafruit_7segment();
+    disp_mat[n].begin(DISP_ADD[n]);
+    disp_mat[n].clear();
+    disp_mat[n].drawColon(false);
+    disp_mat[n].writeDisplay();
+
+    disp_8x8[n] = Adafruit_8x8matrix();
+    disp_8x8[n].begin(DISP_ADD[n]);
+    disp_8x8[n].setTextSize(1);
+    disp_8x8[n].setRotation(3);
+    disp_8x8[n].clear();
+    disp_8x8[n].writeDisplay();
+  }
 
   return;
 }
+
+
+/*================================================================================*
+  UPDATE LANE PLACE/TIME DISPLAY
+ *================================================================================*/
+void update_display(uint8_t pos, uint8_t msgL[], uint8_t msgS[])
+{
+  switch (dBANK1)
+  {
+    case dt8x8m:
+      display_msg(pos, dt8x8m, msgS);
+      break;
+
+    case dt7seg:
+    case dtL7sg:
+      display_msg(pos, dBANK1, msgL);
+      break;
+  }
+
+  switch (dBANK2)
+  {
+    case dt8x8m:
+      display_msg(pos+4, dt8x8m, msgS);
+      break;
+
+    case dt7seg:
+    case dtL7sg:
+      display_msg(pos+4, dBANK2, msgL);
+      break;
+  }
+
+}
+
+/*================================================================================*
+  UPDATE LANE PLACE/TIME DISPLAY
+ *================================================================================*/
+void update_display(uint8_t pos, uint8_t place, unsigned long dtime)
+{
+  switch (dBANK1)
+  {
+    case dt8x8m:
+      display_place(pos, dt8x8m, place);
+      break;
+
+    case dt7seg:
+    case dtL7sg:
+      display_time(pos, dBANK1, dtime);
+      break;
+  }
+
+  switch (dBANK2)
+  {
+    case dt8x8m:
+      display_place(pos+4, dt8x8m, place);
+      break;
+
+    case dt7seg:
+    case dtL7sg:
+      display_time(pos+4, dBANK2, dtime);
+      break;
+  }
+}
+
+
+/*================================================================================*
+  flip 7 segment bitmask (rotate 180 degrees)
+ *================================================================================*/
+uint8_t flip_char(uint8_t mc)
+{
+  return ((B11000000 & mc) + ((B00111000 & mc)>>3) + ((B00000111 & mc)<<3));
+}
+
