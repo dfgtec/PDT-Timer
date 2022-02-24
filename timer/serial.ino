@@ -2,14 +2,6 @@
    Pinewood Derby Timer
    www.dfgtec.com/pdt
 
-   Flexible and affordable Pinewood Derby timer that interfaces with the
-   following software:
-     - PD Test/Tune/Track Utility
-     - Grand Prix Race Manager software
-
-   Refer to the website for setup and usage instructions.
-
-
    Copyright (C) 2011-2022 David Gadberry
 
    This work is licensed under the Creative Commons Attribution-NonCommercial-
@@ -99,7 +91,7 @@ void process_general_msgs()
   {
     if (digitalRead(START_GATE) != START_TRIP)    // only reset if gate closed
     {
-      initialize();
+      initialize_timer();
     }
     else
     {
@@ -246,6 +238,33 @@ void smsg_str(const char * msg, boolean crlf)
     Serial.print(msg);
   }
   Serial.flush();
+  return;
+}
+
+
+/*================================================================================*
+  SEND RACE RESULTS TO COMPUTER
+ *================================================================================*/
+void send_race_results()
+{
+  float lane_time_sec;
+
+
+  for (uint8_t n=0; n<NUM_LANES; n++)    // send times to computer
+  {
+    lane_time_sec = (float)(lane_time[n] / 1000000.0);    // elapsed time (seconds)
+
+    if (lane_time_sec == 0)    // did not finish
+    {
+      lane_time_sec = NULL_TIME;
+    }
+
+    Serial.print(n+1);
+    Serial.print(" - ");
+    Serial.println(lane_time_sec, NUM_DIGIT);  // numbers are rounded to NUM_DIGIT
+                                               // digits by println function
+  }
+
   return;
 }
 

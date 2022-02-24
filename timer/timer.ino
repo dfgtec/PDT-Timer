@@ -2,14 +2,6 @@
    Pinewood Derby Timer
    www.dfgtec.com/pdt
 
-   Flexible and affordable Pinewood Derby timer that interfaces with the
-   following software:
-     - PD Test/Tune/Track Utility
-     - Grand Prix Race Manager software
-
-   Refer to the website for setup and usage instructions.
-
-
    Copyright (C) 2011-2022 David Gadberry
 
    This work is licensed under the Creative Commons Attribution-NonCommercial-
@@ -29,8 +21,8 @@ const boolean GATE_RESET  = false;     // Enable closing start gate to reset tim
 const boolean SHOW_PLACE  = true;      // Show place mode
 const uint8_t PLACE_DELAY = 3;         // Delay (secs) when displaying place/time
 
-const uint8_t dBANK1 = dt8x8m;
-const uint8_t dBANK2 = dt7seg;
+const uint8_t dBANK1 = dt8x8m;         // display type of first bank of displays
+const uint8_t dBANK2 = dt7seg;         // display type of second bank of displays
 /*-----------------------------------------*
   - END -
  *-----------------------------------------*/
@@ -78,13 +70,13 @@ void setup()
   if (digitalRead(RESET_SWITCH) == LOW)
   {
     mode = mTEST;
-    test_pdt_hw();
+    test_timer_hw();
   }
 
 /*-----------------------------------------*
   - initialize timer -
  *-----------------------------------------*/
-  initialize(true);
+  initialize_timer(true);
   lane_msk = B00000000;
 
 }
@@ -102,9 +94,11 @@ void loop()
     case mREADY:
       timer_ready_state();
       break;
+
     case mRACING:
       timer_racing_state();
       break;
+
     case mFINISH:
       timer_finished_state();
       break;
@@ -120,7 +114,7 @@ void timer_ready_state()
   if (ready_first)
   {
     set_status_led();
-    clear_displays();
+    clear_displays(msgDashT);
 
     ready_first = false;
   }
@@ -152,13 +146,9 @@ void timer_ready_state()
  *================================================================================*/
 void timer_racing_state()
 {
-  uint8_t finish_order;
+  uint8_t finish_order, lane_cur, lane_end;
   unsigned long current_time, last_finish_time;
   uint32_t lane_sts;
-  uint8_t lane_cur, lane_end;
-  boolean tfirst=true; //dfg
-  uint8_t t=0; //dfg
-
 
   set_status_led();
   clear_displays();
@@ -169,17 +159,6 @@ void timer_racing_state()
 
   while (lane_end < end_cond)
   {
-    if (tfirst)
-    {
-      test_point(t++);
-
-      if (t > 5)
-      {
-        tfirst = false;
-        test_point_print();
-      }
-    }
-
     current_time = micros();
 #ifdef MCU_ESP32
     lane_sts = REG_READ(GPIO_IN_REG) >> 12;    // read lane status (ESP32)
@@ -238,7 +217,7 @@ void timer_finished_state()
 
     if (digitalRead(START_GATE) != START_TRIP)    // gate still closed
     {
-      initialize();    // reset timer
+      initialize_timer();    // reset timer
     }
   }
 
@@ -249,7 +228,7 @@ void timer_finished_state()
   }
 
   read_brightness_value();
-//  display_race_results();
+  cycle_race_results();
 
   return;
 }
@@ -258,7 +237,7 @@ void timer_finished_state()
 /*================================================================================*
   TEST PDT FINISH DETECTION HARDWARE
  *================================================================================*/
-void test_pdt_hw()
+void test_timer_hw()
 {
   uint8_t lane_status[NUM_LANES];
   char ctmp[10];
@@ -347,162 +326,13 @@ void test_pdt_hw()
 
 
 /*================================================================================*
-  SEND RACE RESULTS TO COMPUTER
- *================================================================================*/
-void send_race_results()
-{
-  float lane_time_sec;
-
-
-  for (uint8_t n=0; n<NUM_LANES; n++)    // send times to computer
-  {
-    lane_time_sec = (float)(lane_time[n] / 1000000.0);    // elapsed time (seconds)
-
-    if (lane_time_sec == 0)    // did not finish
-    {
-      lane_time_sec = NULL_TIME;
-    }
-
-    Serial.print(n+1);
-    Serial.print(" - ");
-    Serial.println(lane_time_sec, NUM_DIGIT);  // numbers are rounded to NUM_DIGIT
-                                               // digits by println function
-  }
-
-  return;
-}
-
-
-/*================================================================================*
-  RACE FINISHED - DISPLAY PLACE / TIME FOR ALL LANES
- *================================================================================*/
-void display_race_results()
-{
-  unsigned long now;
-  static boolean display_mode;
-  static unsigned long last_display_update = 0;
-
-
-  if (!SHOW_PLACE) return;
-
-  now = millis();
-
-  if (last_display_update == 0)  // first cycle
-  {
-    last_display_update = now;
-    display_mode = false;
-  }
-
-  if ((now - last_display_update) > (unsigned long)(PLACE_DELAY * 1000))
-  {
-    dbg(fDebug, "display_race_results");
-
-    for (uint8_t n=0; n<NUM_LANES; n++)
-    {
-      update_display(n, lane_place[n], lane_time[n]);
-    }
-
-    display_mode = !display_mode;
-    last_display_update = now;
-  }
-
-  return;
-}
-
-
-/*================================================================================*
-  CLEAR LANE PLACE/TIME DISPLAYS
- *================================================================================*/
-void clear_displays()
-{
-  dbg(fDebug, "led: CLEAR");
-
-  for (uint8_t n=0; n<NUM_LANES; n++)
-  {
-    if (mode == mRACING || mode == mTEST)
-    {
-      update_display(n, msgBlank);           // racing
-    }
-    else
-    {
-      update_display(n, msgDashT, msgDashT); // ready
-    }
-  }
-
-  return;
-}
-
-
-/*================================================================================*
-  SET LANE DISPLAY BRIGHTNESS
- *================================================================================*/
-void read_brightness_value()
-{
-#ifndef LED_DISPLAY
-  return;
-#endif
-  float new_level;
-
-  new_level = long(1023 - analogRead(BRIGHT_LEV)) / 1023.0F * 15.0F;
-  new_level = constrain(new_level, (float)MIN_BRIGHT, (float)MAX_BRIGHT);
-
-  if (fabs(new_level - display_level) > 0.3F)    // deadband to prevent flickering
-  {                                              // between levels
-    display_level = new_level;
-    set_display_brightness(display_level);
-  }
-
-  return;
-}
-
-
-/*================================================================================*
-  SET TIMER STATUS LED
- *================================================================================*/
-void set_status_led()
-{
-  uint8_t r_lev, b_lev, g_lev;
-
-  dbg(fDebug, "status led = ", mode);
-
-  r_lev = PWM_LED_OFF;
-  b_lev = PWM_LED_OFF;
-  g_lev = PWM_LED_OFF;
-
-  if (mode == mREADY)         // blue
-  {
-    b_lev = PWM_LED_ON;
-  }
-  else if (mode == mRACING)  // green
-  {
-    g_lev = PWM_LED_ON;
-  }
-  else if (mode == mFINISH)  // red
-  {
-    r_lev = PWM_LED_ON;
-  }
-  else if (mode == mTEST)    // yellow
-  {
-    r_lev = PWM_LED_ON;
-    g_lev = PWM_LED_ON;
-  }
-
-  analogWrite(STATUS_LED_R,  r_lev);
-  analogWrite(STATUS_LED_B,  b_lev);
-  analogWrite(STATUS_LED_G,  g_lev);
-
-  return;
-}
-
-
-/*================================================================================*
   INITIALIZE TIMER
  *================================================================================*/
-void initialize(boolean powerup)
+void initialize_timer(boolean powerup)
 {
   for (uint8_t n=0; n<NUM_LANES; n++)
   {
-    lane_time[n] = 0;
+    lane_time [n] = 0;
     lane_place[n] = 0;
   }
   end_cond = (1<<NUM_LANES)-1;
@@ -514,6 +344,7 @@ void initialize(boolean powerup)
   // if power up and gate is open -> goto FINISH state
   if (powerup && digitalRead(START_GATE) == START_TRIP)
   {
+    clear_displays(msgPower);
     mode = mFINISH;
   }
   else
@@ -526,7 +357,7 @@ void initialize(boolean powerup)
   Serial.flush();
 
   ready_first  = true;
-  finish_first  = true;
+  finish_first = true;
 
   return;
 }

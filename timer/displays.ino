@@ -2,14 +2,6 @@
    Pinewood Derby Timer
    www.dfgtec.com/pdt
 
-   Flexible and affordable Pinewood Derby timer that interfaces with the
-   following software:
-     - PD Test/Tune/Track Utility
-     - Grand Prix Race Manager software
-
-   Refer to the website for setup and usage instructions.
-
-
    Copyright (C) 2011-2022 David Gadberry
 
    This work is licensed under the Creative Commons Attribution-NonCommercial-
@@ -183,6 +175,7 @@ void set_display_brightness(uint8_t level)
         break;
     }
   }
+
   return;
 }
 
@@ -245,12 +238,14 @@ void update_display(uint8_t pos, uint8_t msgL[], uint8_t msgS[])
       break;
   }
 
+  return;
 }
+
 
 /*================================================================================*
   UPDATE LANE PLACE/TIME DISPLAY
  *================================================================================*/
-void update_display(uint8_t pos, uint8_t place, unsigned long dtime)
+void update_display(uint8_t pos, uint8_t place, unsigned long dtime, boolean mode)
 {
   switch (dBANK1)
   {
@@ -260,7 +255,10 @@ void update_display(uint8_t pos, uint8_t place, unsigned long dtime)
 
     case dt7seg:
     case dtL7sg:
-      display_time(pos, dBANK1, dtime);
+      if (mode)
+        display_place(pos, dBANK1, place);
+      else
+        display_time (pos, dBANK1, dtime);
       break;
   }
 
@@ -272,9 +270,67 @@ void update_display(uint8_t pos, uint8_t place, unsigned long dtime)
 
     case dt7seg:
     case dtL7sg:
-      display_time(pos+4, dBANK2, dtime);
+      if (mode)
+        display_place(pos+4, dBANK2, place);
+      else
+        display_time (pos+4, dBANK2, dtime);
+      break;
       break;
   }
+
+  return;
+}
+
+
+/*================================================================================*
+  CLEAR LANE PLACE/TIME DISPLAYS
+ *================================================================================*/
+void clear_displays(uint8_t msg[])
+{
+  dbg(fDebug, "led: CLEAR");
+
+  for (uint8_t n=0; n<NUM_LANES; n++)
+  {
+    update_display(n, msg, msg);
+  }
+
+  return;
+}
+
+
+/*================================================================================*
+  CYCLE DISPLAYING PLACE & TIME FOR ALL LANES
+ *================================================================================*/
+void cycle_race_results()
+{
+  static boolean display_mode;
+  unsigned long now;
+
+  if (!SHOW_PLACE || (dBANK1 == dt8x8m || dBANK2 == dt8x8m)) return;
+  if (lane_place[0] == 0) return;  // after power, no race run yet
+
+  now = millis();
+
+  if (last_disp_update == 0)  // first cycle
+  {
+    last_disp_update = now;
+    display_mode = false;
+  }
+
+  if ((now - last_disp_update) > (unsigned long)(PLACE_DELAY * 1000))
+  {
+    dbg(fDebug, "cycle_race_results");
+
+    for (uint8_t n=0; n<NUM_LANES; n++)
+    {
+      update_display(n, lane_place[n], lane_time[n], display_mode);
+    }
+
+    display_mode = !display_mode;
+    last_disp_update = now;
+  }
+
+  return;
 }
 
 
@@ -284,5 +340,67 @@ void update_display(uint8_t pos, uint8_t place, unsigned long dtime)
 uint8_t flip_char(uint8_t mc)
 {
   return ((B11000000 & mc) + ((B00111000 & mc)>>3) + ((B00000111 & mc)<<3));
+}
+
+
+/*================================================================================*
+  SET LANE DISPLAY BRIGHTNESS
+ *================================================================================*/
+void read_brightness_value()
+{
+#ifndef LED_DISPLAY
+  return;
+#endif
+  float new_level;
+
+  new_level = long(1023 - analogRead(BRIGHT_LEV)) / 1023.0F * 15.0F;
+  new_level = constrain(new_level, (float)MIN_BRIGHT, (float)MAX_BRIGHT);
+
+  if (fabs(new_level - display_level) > 0.3F)    // deadband to prevent flickering
+  {                                              // between levels
+    display_level = new_level;
+    set_display_brightness(display_level);
+  }
+
+  return;
+}
+
+
+/*================================================================================*
+  SET TIMER STATUS LED
+ *================================================================================*/
+void set_status_led()
+{
+  uint8_t r_lev, b_lev, g_lev;
+
+  dbg(fDebug, "status led = ", mode);
+
+  r_lev = PWM_LED_OFF;
+  b_lev = PWM_LED_OFF;
+  g_lev = PWM_LED_OFF;
+
+  if (mode == mREADY)         // blue
+  {
+    b_lev = PWM_LED_ON;
+  }
+  else if (mode == mRACING)  // green
+  {
+    g_lev = PWM_LED_ON;
+  }
+  else if (mode == mFINISH)  // red
+  {
+    r_lev = PWM_LED_ON;
+  }
+  else if (mode == mTEST)    // yellow
+  {
+    r_lev = PWM_LED_ON;
+    g_lev = PWM_LED_ON;
+  }
+
+  analogWrite(STATUS_LED_R,  r_lev);
+  analogWrite(STATUS_LED_B,  b_lev);
+  analogWrite(STATUS_LED_G,  g_lev);
+
+  return;
 }
 
