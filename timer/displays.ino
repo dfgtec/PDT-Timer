@@ -5,10 +5,22 @@
    Copyright (C) 2011-2022 David Gadberry
 
    This work is licensed under the Creative Commons Attribution-NonCommercial-
-   ShareAlike 3.0 Unported License. To view a copy of this license, visit
-   http://creativecommons.org/licenses/by-nc-sa/3.0/ or send a letter to
-   Creative Commons, 444 Castro Street, Suite 900, Mountain View, California,
-   94041, USA.
+   ShareAlike 4.0 International (CC BY-NC-SA 4.0) License. To view a copy of 
+   this license, visit https://creativecommons.org/licenses/by-nc-sa/4.0/ or 
+   send a letter to Creative Commons, 444 Castro Street, Suite 900, 
+   Mountain View, California, 94041, USA.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+   ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE 
+   LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
+   CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
+   SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
+   INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
+   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+   POSSIBILITY OF SUCH DAMAGE.
  *================================================================================*/
 
 
@@ -19,7 +31,7 @@ void display_msg(uint8_t pos, uint8_t type, uint8_t msg[])
 {
 #ifndef LED_DISPLAY
   return;
-#endif
+#else
 
   if (type >= dt7seg)     
     disp_mat[pos].clear();
@@ -53,6 +65,8 @@ void display_msg(uint8_t pos, uint8_t type, uint8_t msg[])
     disp_8x8[pos].writeDisplay();
 
   return;
+
+#endif
 }
 
 
@@ -63,7 +77,8 @@ void display_place(uint8_t pos, uint8_t type, uint8_t place)
 {
 #ifndef LED_DISPLAY
   return;
-#endif
+#else
+
   char cplace[4];
 
   if (type >= dt7seg)     
@@ -93,6 +108,8 @@ void display_place(uint8_t pos, uint8_t type, uint8_t place)
     disp_8x8[pos].writeDisplay();
 
   return;
+
+#endif
 }
 
 
@@ -103,7 +120,8 @@ void display_time(uint8_t pos, uint8_t type, unsigned long dtime)
 {
 #ifndef LED_DISPLAY
   return;
-#endif
+#else
+
   char ctime[10];
   boolean showdot=false;
 
@@ -137,6 +155,8 @@ void display_time(uint8_t pos, uint8_t type, unsigned long dtime)
   disp_mat[pos].writeDisplay();
 
   return;
+
+#endif
 }
 
 
@@ -147,7 +167,7 @@ void set_display_brightness(uint8_t level)
 {
 #ifndef LED_DISPLAY
   return;
-#endif
+#else
 
   for (uint8_t n=0; n<NUM_LANES; n++)
   {
@@ -177,6 +197,8 @@ void set_display_brightness(uint8_t level)
   }
 
   return;
+
+#endif
 }
 
 
@@ -187,7 +209,7 @@ void display_init()
 {
 #ifndef LED_DISPLAY
   return;
-#endif
+#else
 
   for (uint8_t n=0; n<MAX_DISP; n++)
   {
@@ -206,6 +228,8 @@ void display_init()
   }
 
   return;
+
+#endif
 }
 
 
