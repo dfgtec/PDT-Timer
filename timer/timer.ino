@@ -28,12 +28,12 @@
 /*-----------------------------------------*
   - TIMER CONFIGURATION -
  *-----------------------------------------*/
-const uint8_t NUM_LANES   = 2;         // number of lanes
+const uint8_t NUM_LANES   = 4;         // number of lanes
 const boolean GATE_RESET  = false;     // Enable closing start gate to reset timer
 const boolean SHOW_PLACE  = true;      // Show place mode
 const uint8_t PLACE_DELAY = 3;         // Delay (secs) when displaying place/time
 
-const uint8_t dBANK1 = dt8x8m;         // display type of first bank of displays
+const uint8_t dBANK1 = dt7seg;         // display type of first bank of displays
 const uint8_t dBANK2 = dt7seg;         // display type of second bank of displays
 /*-----------------------------------------*
   - END -
@@ -81,7 +81,7 @@ void setup()
  *-----------------------------------------*/
   if (digitalRead(RESET_SWITCH) == LOW)
   {
-    mode = mTEST;
+    timer_mode = mTEST;
     test_timer_hw();
   }
 
@@ -102,8 +102,12 @@ void loop()
 {
   process_general_msgs();
 
-  switch (mode)
+  switch (timer_mode)
   {
+    case mINIT:
+      timer_init_state();
+      break;
+
     case mREADY:
       timer_ready_state();
       break;
@@ -120,13 +124,23 @@ void loop()
 
 
 /*================================================================================*
+  TIMER INIT STATE
+ *================================================================================*/
+void timer_init_state()
+{
+
+  return;
+}
+
+
+/*================================================================================*
   TIMER READY STATE
  *================================================================================*/
 void timer_ready_state()
 {
   if (ready_first)
   {
-    set_status_led();
+    set_status_led(LED_STS[mREADY]);
     clear_displays(msgDashT);
 
     ready_first = false;
@@ -147,7 +161,7 @@ void timer_ready_state()
     smsg(SMSG_START);
     delay(100);
 
-    mode = mRACING;
+    timer_mode = mRACING;
   }
 
   return;
@@ -163,7 +177,7 @@ void timer_racing_state()
   unsigned long current_time, last_finish_time;
   uint32_t lane_sts;
 
-  set_status_led();
+  set_status_led(LED_STS[mRACING]);
   clear_displays();
 
   finish_order = 0;
@@ -207,7 +221,7 @@ void timer_racing_state()
     }
   }
   send_race_results();
-  mode = mFINISH;
+  timer_mode = mFINISH;
 
   return;
 }
@@ -220,12 +234,12 @@ void timer_finished_state()
 {
   if (finish_first)
   {
-    set_status_led();
+    set_status_led(LED_STS[mFINISH]);
     finish_first = false;
   }
 
-  if (GATE_RESET && digitalRead(START_GATE) != START_TRIP)    // gate closed
-  {
+  if (GATE_RESET && digitalRead(START_GATE) != START_TRIP)    // reset timer if configured
+  {                                                           // and start gate is closed
     delay(500);    // ignore any switch bounce
 
     if (digitalRead(START_GATE) != START_TRIP)    // gate still closed
@@ -248,6 +262,43 @@ void timer_finished_state()
 
 
 /*================================================================================*
+  INITIALIZE TIMER
+ *================================================================================*/
+void initialize_timer(boolean powerup)
+{
+  for (uint8_t n=0; n<NUM_LANES; n++)
+  {
+    lane_time [n] = 0;
+    lane_place[n] = 0;
+  }
+  end_cond = (1<<NUM_LANES)-1;
+
+  start_time = 0;
+  digitalWrite(START_SOL, LOW);
+
+  // if power up and gate is open -> goto FINISH state
+  if (powerup && digitalRead(START_GATE) == START_TRIP)
+  {
+    clear_displays(msgPower);
+    timer_mode = mFINISH;
+  }
+  else
+  {
+    timer_mode = mREADY;
+
+    smsg(SMSG_READY);
+    delay(100);
+  }
+  Serial.flush();
+
+  ready_first  = true;
+  finish_first = true;
+
+  return;
+}
+
+
+/*================================================================================*
   TEST PDT FINISH DETECTION HARDWARE
  *================================================================================*/
 void test_timer_hw()
@@ -257,7 +308,7 @@ void test_timer_hw()
 
 
   smsg_str("TEST MODE");
-  set_status_led();
+  set_status_led(LED_STS[mTEST]);
   delay(2000);
 
 /*-----------------------------------------*
@@ -336,42 +387,3 @@ void test_timer_hw()
     delay(1000);
   }
 }
-
-
-/*================================================================================*
-  INITIALIZE TIMER
- *================================================================================*/
-void initialize_timer(boolean powerup)
-{
-  for (uint8_t n=0; n<NUM_LANES; n++)
-  {
-    lane_time [n] = 0;
-    lane_place[n] = 0;
-  }
-  end_cond = (1<<NUM_LANES)-1;
-
-  start_time = 0;
-  set_status_led();
-  digitalWrite(START_SOL, LOW);
-
-  // if power up and gate is open -> goto FINISH state
-  if (powerup && digitalRead(START_GATE) == START_TRIP)
-  {
-    clear_displays(msgPower);
-    mode = mFINISH;
-  }
-  else
-  {
-    mode = mREADY;
-
-    smsg(SMSG_READY);
-    delay(100);
-  }
-  Serial.flush();
-
-  ready_first  = true;
-  finish_first = true;
-
-  return;
-}
-

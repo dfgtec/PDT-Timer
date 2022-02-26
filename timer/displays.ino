@@ -27,7 +27,7 @@
 /*================================================================================*
   SEND MESSAGE TO DISPLAY
  *================================================================================*/
-void display_msg(uint8_t pos, uint8_t type, uint8_t msg[])
+void display_msg(uint8_t pos, uint8_t type, const uint8_t msg[])
 {
 #ifndef LED_DISPLAY
   return;
@@ -236,7 +236,7 @@ void display_init()
 /*================================================================================*
   UPDATE LANE PLACE/TIME DISPLAY
  *================================================================================*/
-void update_display(uint8_t pos, uint8_t msgL[], uint8_t msgS[])
+void update_display(uint8_t pos, const uint8_t msgL[], const uint8_t msgS[])
 {
   switch (dBANK1)
   {
@@ -309,12 +309,15 @@ void update_display(uint8_t pos, uint8_t place, unsigned long dtime, boolean mod
 /*================================================================================*
   CLEAR LANE PLACE/TIME DISPLAYS
  *================================================================================*/
-void clear_displays(uint8_t msg[])
+void clear_displays(uint8_t const msg[])
 {
   dbg(fDebug, "led: CLEAR");
 
   for (uint8_t n=0; n<NUM_LANES; n++)
   {
+    if (timer_mode == mRACING && ((1<<n) & lane_msk))  // don't clear masked lanes
+      continue;                                        // at start of race
+
     update_display(n, msg, msg);
   }
 
@@ -331,7 +334,6 @@ void cycle_race_results()
   unsigned long now;
 
   if (!SHOW_PLACE || (dBANK1 == dt8x8m || dBANK2 == dt8x8m)) return;
-  if (lane_place[0] == 0) return;  // after power, no race run yet
 
   now = millis();
 
@@ -347,7 +349,10 @@ void cycle_race_results()
 
     for (uint8_t n=0; n<NUM_LANES; n++)
     {
-      update_display(n, lane_place[n], lane_time[n], display_mode);
+      if (lane_place[n] != 0)
+        update_display(n, lane_place[n], lane_time[n], display_mode);
+      else
+        update_display(n, msgDashT, msgDashL);
     }
 
     display_mode = !display_mode;
@@ -393,37 +398,11 @@ void read_brightness_value()
 /*================================================================================*
   SET TIMER STATUS LED
  *================================================================================*/
-void set_status_led()
+void set_status_led(uint8_t const ledSTS[])
 {
-  uint8_t r_lev, b_lev, g_lev;
-
-  dbg(fDebug, "status led = ", mode);
-
-  r_lev = PWM_LED_OFF;
-  b_lev = PWM_LED_OFF;
-  g_lev = PWM_LED_OFF;
-
-  if (mode == mREADY)         // blue
-  {
-    b_lev = PWM_LED_ON;
-  }
-  else if (mode == mRACING)  // green
-  {
-    g_lev = PWM_LED_ON;
-  }
-  else if (mode == mFINISH)  // red
-  {
-    r_lev = PWM_LED_ON;
-  }
-  else if (mode == mTEST)    // yellow
-  {
-    r_lev = PWM_LED_ON;
-    g_lev = PWM_LED_ON;
-  }
-
-  analogWrite(STATUS_LED_R,  r_lev);
-  analogWrite(STATUS_LED_B,  b_lev);
-  analogWrite(STATUS_LED_G,  g_lev);
+  analogWrite(STATUS_LED_R, ledSTS[0]);
+  analogWrite(STATUS_LED_G, ledSTS[1]);
+  analogWrite(STATUS_LED_B, ledSTS[2]);
 
   return;
 }

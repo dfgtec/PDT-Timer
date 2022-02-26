@@ -1,5 +1,5 @@
 /*================================================================================*
-   Pinewood Derby Timer                                Version 3.50 - ?? ??? 2022
+   Pinewood Derby Timer                                Version 3.30 - ?? ??? 2022
    www.dfgtec.com/pdt
 
    Flexible and affordable Pinewood Derby timer that interfaces with the
@@ -43,7 +43,7 @@ const uint8_t LANE_TRIP  = HIGH;       // lane finish trip condition
 /*-----------------------------------------*
   - static definitions -
  *-----------------------------------------*/
-#define PDT_VERSION  "3.50"            // software version
+#define PDT_VERSION  "3.30"            // software version
 
 #ifdef MCU_ESP32
 const uint8_t MAX_LANE = 8;            // maximum number of lanes (ESP32)
@@ -51,18 +51,16 @@ const uint8_t MAX_LANE = 8;            // maximum number of lanes (ESP32)
 const uint8_t MAX_LANE = 6;            //                         (Arduino Uno)
 #endif
 
-const uint8_t mREADY   = 0;            // timer modes
-const uint8_t mRACING  = 1;
-const uint8_t mFINISH  = 2;
-const uint8_t mTEST    = 3;
+const uint8_t mINIT    = 1;            // timer modes
+const uint8_t mREADY   = 2;
+const uint8_t mRACING  = 3;
+const uint8_t mFINISH  = 4;
+const uint8_t mTEST    = 5;
 
 const float   NULL_TIME  = 99.999F;    // null (non-finish) time
 const uint8_t NUM_DIGIT  = 4;          // timer resolution (# of decimals)
 
-const uint8_t PWM_LED_ON  =  20;       // status LED config
-const uint8_t PWM_LED_OFF = 255;
-
-#define char2int(c) (c - '0')          // char processing function
+#define char2int(c) (c - '0')          // convert char to integer
 
 /*-----------------------------------------*
   - serial messages -
@@ -70,29 +68,29 @@ const uint8_t PWM_LED_OFF = 255;
 //                                        <- to timer
 //                                        -> from timer
 
-#define SMSG_CGATE   'G'               // <- check gate
-#define SMSG_GOPEN   'O'               // -> gate open
+const char SMSG_CGATE = 'G';           // <- check gate
+const char SMSG_GOPEN = 'O';           // -> gate open
 
-#define SMSG_RESET   'R'               // <- reset
-#define SMSG_READY   'K'               // -> ready
+const char SMSG_RESET = 'R';           // <- reset
+const char SMSG_READY = 'K';           // -> ready
 
-#define SMSG_ACKNW   '.'               // -> acknowledge message
-#define SMSG_POWER   'P'               // -> start-up (power on or hard reset)
-#define SMSG_START   'B'               // -> race started
+const char SMSG_ACKNW = '.';           // -> acknowledge message
+const char SMSG_POWER = 'P';           // -> start-up (power on or hard reset)
+const char SMSG_START = 'B';           // -> race started
 
-#define SMSG_SOLEN   'S'               // <- start solenoid
-#define SMSG_FORCE   'F'               // <- force end
-#define SMSG_RSEND   'Q'               // <- resend race data
+const char SMSG_SOLEN = 'S';           // <- start solenoid
+const char SMSG_FORCE = 'F';           // <- force end
+const char SMSG_RSEND = 'Q';           // <- resend race data
 
-#define SMSG_LMASK   'M'               // <- mask lane
-#define SMSG_UMASK   'U'               // <- unmask all lanes
+const char SMSG_LMASK = 'M';           // <- mask lane
+const char SMSG_UMASK = 'U';           // <- unmask all lanes
 
-#define SMSG_GVERS   'V'               // <- request timer version
-#define SMSG_DEBUG   'D'               // <- toggle debug on/off
-#define SMSG_GNUML   'N'               // <- request number of lanes
-#define SMSG_TINFO   'I'               // <- request timer information
+const char SMSG_GVERS = 'V';           // <- request timer version
+const char SMSG_DEBUG = 'D';           // <- toggle debug on/off
+const char SMSG_GNUML = 'N';           // <- request number of lanes
+const char SMSG_TINFO = 'I';           // <- request timer information
 
-#define SMSG_DTEST   'T'               // <- development test function
+const char SMSG_DTEST = 'T';           // <- development test function
 
 /*-----------------------------------------*
   - pin assignments -
@@ -142,14 +140,14 @@ Adafruit_8x8matrix disp_8x8[MAX_DISP];
 const uint8_t DISP_ADD[MAX_DISP] = {0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77};    // Adafruit displays
 
 // Display messages
-uint8_t msgGateC[] = {0x6D, 0x48, 0x00, 0x39, 0x38};  // S=CL
-uint8_t msgGateO[] = {0x6D, 0x48, 0x00, 0x3F, 0x73};  // S=OP
-uint8_t msgLight[] = {0x48, 0x48, 0x00, 0x38, 0x38};  // ==LL
-uint8_t msgDark [] = {0x48, 0x48, 0x00, 0x5e, 0x5e};  // ==dd
-uint8_t msgDashT[] = {0x40, 0x40, 0x00, 0x40, 0x40};  // ----
-uint8_t msgDashL[] = {0x00, 0x00, 0x00, 0x40, 0x00};  //   -
-uint8_t msgPower[] = {0x00, 0x5c, 0x00, 0x54, 0x00};  // oooo
-uint8_t msgBlank[] = {0x00, 0x00, 0x00, 0x00, 0x00};  // (blank)
+const uint8_t msgGateC[] = {0x6D, 0x48, 0x00, 0x39, 0x38};  // S=CL
+const uint8_t msgGateO[] = {0x6D, 0x48, 0x00, 0x3F, 0x73};  // S=OP
+const uint8_t msgLight[] = {0x48, 0x48, 0x00, 0x38, 0x38};  // ==LL
+const uint8_t msgDark [] = {0x48, 0x48, 0x00, 0x5e, 0x5e};  // ==dd
+const uint8_t msgDashT[] = {0x40, 0x40, 0x00, 0x40, 0x40};  // ----
+const uint8_t msgDashL[] = {0x00, 0x00, 0x00, 0x40, 0x00};  //   -
+const uint8_t msgPower[] = {0x00, 0x5c, 0x00, 0x54, 0x00};  // oooo
+const uint8_t msgBlank[] = {0x00, 0x00, 0x00, 0x00, 0x00};  // (blank)
 
 // Number (0-9) bitmasks
 const uint8_t numMasks[] = {
@@ -180,9 +178,25 @@ float         display_level = -1.0;    // display brightness level
 unsigned long last_disp_update = 0;    // last update (display cycle)
 
 /*-----------------------------------------*
+  - status led setup -
+ *-----------------------------------------*/
+const uint8_t lsOFF = 0;
+const uint8_t pON  = 150;              // PWM levels (analogWrite)
+const uint8_t pDIM = 220;              //   0 - 100% on, 255 = 0 % on (off)
+const uint8_t pOFF = 255;
+
+//                               R     G     B           mode     LED color
+const uint8_t LED_STS[6][3] = {{ pOFF, pOFF, pOFF},   // lsOFF    (-off-)
+                               { pOFF, pON , pON },   // mINIT    (cyan)
+                               { pOFF, pOFF, pON },   // mREADY   (blue)
+                               { pOFF, pON , pOFF},   // mRACING  (green)
+                               { pON , pOFF, pOFF},   // mFINISH  (red)
+                               { pOFF, pDIM, pDIM}};  // mTEST    (dim cyan)
+
+/*-----------------------------------------*
   - global variables -
  *-----------------------------------------*/
-byte          mode;                    // current program mode
+byte          timer_mode;              // current timer mode
 boolean       ready_first;             // first pass in ready state flag
 boolean       finish_first;            // first pass in finish state flag
 
@@ -202,9 +216,9 @@ void initialize_timer(boolean powerup=false);
 void dbg(int, const char * msg, int val=-999);
 void smsg(char msg, boolean crlf=true);
 void smsg_str(const char * msg, boolean crlf=true);
-void update_display(uint8_t pos, uint8_t msgL[], uint8_t msgS[]=msgBlank);
+void update_display(uint8_t pos, const uint8_t msgL[], const uint8_t msgS[]=msgBlank);
 void update_display(uint8_t pos, uint8_t place, unsigned long dtime, boolean mode=false);
-void clear_displays(uint8_t msg[]=msgBlank);
+void clear_displays(const uint8_t msg[]=msgBlank);
 
 
 // dfg TEST variables

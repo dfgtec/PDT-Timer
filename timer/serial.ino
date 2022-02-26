@@ -62,11 +62,24 @@ void process_general_msgs()
     test_start();
     update_display(1, 8, 1234567);
     test_stop();
-    delay(3000);
+    delay(1000);
 
     test_start();
     update_display(0, msgIndy);
     test_stop();
+
+    set_status_led(LED_STS[lsOFF]);
+    delay(1000);
+    set_status_led(LED_STS[mTEST]);
+    delay(1000);
+    set_status_led(LED_STS[mINIT]);
+    delay(1000);
+    set_status_led(LED_STS[mREADY]);
+    delay(1000);
+    set_status_led(LED_STS[mRACING]);
+    delay(1000);
+    set_status_led(LED_STS[mFINISH]);
+    delay(1000);
 
     delay(5000);
 
@@ -108,6 +121,7 @@ void process_general_msgs()
     else
     {
       smsg(SMSG_GOPEN);
+      delay(100);
     }
   }
 
@@ -301,10 +315,6 @@ void send_timer_info()
   Serial.println(tmps);
   sprintf(tmps, "  PLACE_DELAY   %d", PLACE_DELAY);
   Serial.println(tmps);
-  sprintf(tmps, "  MIN_BRIGHT    %d", MIN_BRIGHT);
-  Serial.println(tmps);
-  sprintf(tmps, "  MAX_BRIGHT    %d", MAX_BRIGHT);
-  Serial.println(tmps);
 
   Serial.println("");
 
@@ -313,6 +323,39 @@ void send_timer_info()
 #else
   Serial.println("  LED_DISPLAY   0");
 #endif
+  sprintf(tmps, "  dBANK1        %d", dBANK1);
+  Serial.println(tmps);
+  sprintf(tmps, "  dBANK2        %d", dBANK2);
+  Serial.println(tmps);
+  sprintf(tmps, "  brightness    %d", (uint8_t)display_level);
+  Serial.println(tmps);
+  sprintf(tmps, "  MIN_BRIGHT    %d", MIN_BRIGHT);
+  Serial.println(tmps);
+  sprintf(tmps, "  MAX_BRIGHT    %d", MAX_BRIGHT);
+  Serial.println(tmps);
+
+  Serial.println("");
+
+#ifdef MCU_ESP32
+  Serial.println("  MCU_ESP32     1");
+#else
+  Serial.println("  MCU_ESP32     0");
+#endif
+  sprintf(tmps, "  MAX_LANE      %d", MAX_LANE);
+  Serial.println(tmps);
+
+  Serial.println("");
+
+if (START_TRIP)
+  Serial.println("  START_TRIP    HIGH");
+else
+  Serial.println("  START_TRIP    LOW");
+
+if (LANE_TRIP)
+  Serial.println("  LANE_TRIP     HIGH");
+else
+  Serial.println("  LANE_TRIP     LOW");
+
 
   Serial.println("");
 
