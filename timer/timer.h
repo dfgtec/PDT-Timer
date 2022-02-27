@@ -1,5 +1,5 @@
 /*================================================================================*
-   Pinewood Derby Timer                                Version 3.30 - ?? ??? 2022
+   Pinewood Derby Timer                                Version 3.30 - 27 Feb 2022
    www.dfgtec.com/pdt
 
    Flexible and affordable Pinewood Derby timer that interfaces with the
@@ -33,12 +33,16 @@
 
 
 /*-----------------------------------------*
-  - hardware configuration -
+  - HARDWARE CONFIGURATION -
  *-----------------------------------------*/
-#define LED_DISPLAY  1                 // Enable lane place/time displays
+//#define LED_DISPLAY  1                 // enable lane place/time displays
 //#define MCU_ESP32    1                 // utilize ESP32 MCU 
+
 const uint8_t START_TRIP = LOW;        // start switch trip condition
 const uint8_t LANE_TRIP  = HIGH;       // lane finish trip condition
+/*-----------------------------------------*
+  - END -
+ *-----------------------------------------*/
 
 /*-----------------------------------------*
   - static definitions -
@@ -51,14 +55,14 @@ const uint8_t MAX_LANE = 8;            // maximum number of lanes (ESP32)
 const uint8_t MAX_LANE = 6;            //                         (Arduino Uno)
 #endif
 
-const uint8_t mINIT    = 1;            // timer modes
-const uint8_t mREADY   = 2;
-const uint8_t mRACING  = 3;
-const uint8_t mFINISH  = 4;
-const uint8_t mTEST    = 5;
+const uint8_t mINIT   = 1;             // timer modes
+const uint8_t mREADY  = 2;
+const uint8_t mRACING = 3;
+const uint8_t mFINISH = 4;
+const uint8_t mTEST   = 5;
 
-const float   NULL_TIME  = 99.999F;    // null (non-finish) time
-const uint8_t NUM_DIGIT  = 4;          // timer resolution (# of decimals)
+const float   NULL_TIME = 99.999F;     // null (non-finish) time
+const uint8_t NUM_DIGIT = 4;           // timer resolution (# of decimals)
 
 #define char2int(c) (c - '0')          // convert char to integer
 
@@ -114,11 +118,11 @@ const uint8_t START_SOL    = 13;           // start solenoid
 #endif
 
 // Finish detection sensors
-//                           Lane #    1     2     3     4     5     6     7     8
+//                           Lane #   1    2    3    4    5    6    7    8
 #ifdef MCU_ESP32
-const uint8_t LANE_DET[MAX_LANE] = {  12,   13,   14,   15,   16,   17,   18,   19};    // ESP32
+const uint8_t LANE_DET[MAX_LANE] = { 12,  13,  14,  15,  16,  17,  18,  19};    // ESP32
 #else
-const uint8_t LANE_DET[MAX_LANE] = {   2,    3,    4,    5,    6,    7};                // Arduino Uno
+const uint8_t LANE_DET[MAX_LANE] = {  2,   3,   4,   5,   6,   7};              // Arduino Uno
 #endif
 
 /*-----------------------------------------*
@@ -146,7 +150,7 @@ const uint8_t msgLight[] = {0x48, 0x48, 0x00, 0x38, 0x38};  // ==LL
 const uint8_t msgDark [] = {0x48, 0x48, 0x00, 0x5e, 0x5e};  // ==dd
 const uint8_t msgDashT[] = {0x40, 0x40, 0x00, 0x40, 0x40};  // ----
 const uint8_t msgDashL[] = {0x00, 0x00, 0x00, 0x40, 0x00};  //   -
-const uint8_t msgPower[] = {0x00, 0x5c, 0x00, 0x54, 0x00};  // oooo
+const uint8_t msgPower[] = {0x00, 0x5c, 0x00, 0x54, 0x00};  //  on 
 const uint8_t msgBlank[] = {0x00, 0x00, 0x00, 0x00, 0x00};  // (blank)
 
 // Number (0-9) bitmasks
@@ -181,6 +185,7 @@ unsigned long last_disp_update = 0;    // last update (display cycle)
   - status led setup -
  *-----------------------------------------*/
 const uint8_t lsOFF = 0;
+
 const uint8_t pON  = 150;              // PWM levels (analogWrite)
 const uint8_t pDIM = 220;              //   0 - 100% on, 255 = 0 % on (off)
 const uint8_t pOFF = 255;
@@ -197,6 +202,7 @@ const uint8_t LED_STS[6][3] = {{ pOFF, pOFF, pOFF},   // lsOFF    (-off-)
   - global variables -
  *-----------------------------------------*/
 byte          timer_mode;              // current timer mode
+boolean       init_first;              // first pass in init state flag
 boolean       ready_first;             // first pass in ready state flag
 boolean       finish_first;            // first pass in finish state flag
 
@@ -220,7 +226,3 @@ void update_display(uint8_t pos, const uint8_t msgL[], const uint8_t msgS[]=msgB
 void update_display(uint8_t pos, uint8_t place, unsigned long dtime, boolean mode=false);
 void clear_displays(const uint8_t msg[]=msgBlank);
 
-
-// dfg TEST variables
-unsigned long tstart, tstop, tdelta, tpoint[10];
-uint8_t msgIndy [] = {0x06, 0x54, 0x00, 0x5E, 0x6E};

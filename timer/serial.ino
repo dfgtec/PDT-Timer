@@ -30,7 +30,7 @@
 void process_general_msgs()
 {
   uint8_t lane;
-  char tmps[50];
+  char tmps[15];
 
 
   serial_data = get_serial_data();
@@ -52,48 +52,6 @@ void process_general_msgs()
     send_timer_info();
   }
 
-  else if (serial_data == int(SMSG_DTEST))    // development test function
-  {
-//dfg
-    test_start();
-    update_display(0, 2, 1234567);
-    test_stop();
-
-    test_start();
-    update_display(1, 8, 1234567);
-    test_stop();
-    delay(1000);
-
-    test_start();
-    update_display(0, msgIndy);
-    test_stop();
-
-    set_status_led(LED_STS[lsOFF]);
-    delay(1000);
-    set_status_led(LED_STS[mTEST]);
-    delay(1000);
-    set_status_led(LED_STS[mINIT]);
-    delay(1000);
-    set_status_led(LED_STS[mREADY]);
-    delay(1000);
-    set_status_led(LED_STS[mRACING]);
-    delay(1000);
-    set_status_led(LED_STS[mFINISH]);
-    delay(1000);
-
-    delay(5000);
-
-
-
-#ifdef MCU_ESP32
-    uint32_t input = REG_READ(GPIO_IN_REG) >> 12;   // ESP32
-#else
-    uint8_t input = PIND >> 2;                      // Arduino Uno
-#endif
-    if (!LANE_TRIP) input = ~input;      // flip status bits if configured with LANE_TRIP = LOW
-    Serial.println((uint8_t)input, BIN);
-  }
-
   else if (serial_data == int(SMSG_DEBUG))    // toggle debug
   {
     fDebug = !fDebug;
@@ -102,13 +60,13 @@ void process_general_msgs()
 
   else if (serial_data == int(SMSG_CGATE))    // check start gate
   {
-    if (digitalRead(START_GATE) == START_TRIP)    // gate open
+    if (digitalRead(START_GATE) == START_TRIP)
     {
-      smsg(SMSG_GOPEN);
+      smsg(SMSG_GOPEN);   // gate open
     }
     else
     {
-      smsg(SMSG_ACKNW);
+      smsg(SMSG_ACKNW);   // OK (closed)
     }
   }
 
@@ -120,7 +78,7 @@ void process_general_msgs()
     }
     else
     {
-      smsg(SMSG_GOPEN);
+      smsg(SMSG_GOPEN);   // gate open
       delay(100);
     }
   }
@@ -146,45 +104,18 @@ void process_general_msgs()
     smsg(SMSG_ACKNW);
   }
 
+  else if (serial_data == int(SMSG_DTEST))    // development test function
+  {
+#ifdef MCU_ESP32
+    uint32_t input = REG_READ(GPIO_IN_REG) >> 12;   // ESP32
+#else
+    uint8_t input = PIND >> 2;                      // Arduino Uno
+#endif
+    if (!LANE_TRIP) input = ~input;      // flip status bits if configured with LANE_TRIP = LOW
+    Serial.println((uint8_t)input, BIN);
+  }
+
   return;
-}
-
-//dfg
-void test_start()
-{
-    tstart = micros();
-}
-void test_stop()
-{
-    tstop = micros();
-    tdelta = tstop-tstart;
-    Serial.print("d time: ");
-    Serial.println(tdelta, 8);
-}
-void test_point(uint8_t cnt)
-{
-    tpoint[cnt] = micros();
-}
-
-void test_point_print()
-{
-    Serial.println("point times: ");
-    for (uint8_t n=0; n<5; n++)
-    {
-      if (n==0)
-      {
-        Serial.print("   ");
-        Serial.println(tpoint[n], 8);
-      }
-      else
-      {
-        tstop=tpoint[n]-tpoint[n-1];
-        Serial.print("   ");
-        Serial.print(tpoint[n], 8);
-        Serial.print("   ");
-        Serial.println(tstop, 8);
-      }
-    }
 }
 
 
@@ -211,7 +142,6 @@ int get_serial_data()
 void dbg(int flag, const char * msg, int val)
 {
   char tmps[50];
-
 
   if (!flag) return;
 
@@ -245,7 +175,6 @@ void smsg(char msg, boolean crlf)
   {
     Serial.print(msg);
   }
-  Serial.flush();
   return;
 }
 
@@ -263,7 +192,6 @@ void smsg_str(const char * msg, boolean crlf)
   {
     Serial.print(msg);
   }
-  Serial.flush();
   return;
 }
 
@@ -282,6 +210,7 @@ void send_race_results()
 
     if (lane_time_sec == 0)    // did not finish
     {
+      update_display(n, msgDashT, msgDashL);
       lane_time_sec = NULL_TIME;
     }
 
@@ -370,6 +299,4 @@ else
   Serial.flush();
   return;
 }
-
-
 

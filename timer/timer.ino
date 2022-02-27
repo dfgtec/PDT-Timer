@@ -28,13 +28,13 @@
 /*-----------------------------------------*
   - TIMER CONFIGURATION -
  *-----------------------------------------*/
-const uint8_t NUM_LANES   = 4;         // number of lanes
-const boolean GATE_RESET  = false;     // Enable closing start gate to reset timer
-const boolean SHOW_PLACE  = true;      // Show place mode
-const uint8_t PLACE_DELAY = 3;         // Delay (secs) when displaying place/time
+const uint8_t NUM_LANES   = 1;         // number of lanes
+const boolean GATE_RESET  = false;     // enable closing start gate to reset timer
+const boolean SHOW_PLACE  = true;      // show place mode
+const uint8_t PLACE_DELAY = 3;         // delay (secs) when displaying place/time
 
-const uint8_t dBANK1 = dt7seg;         // display type of first bank of displays
-const uint8_t dBANK2 = dt7seg;         // display type of second bank of displays
+const uint8_t dBANK1 = dtNONE;         // bank 1 display type
+const uint8_t dBANK2 = dtNONE;         // bank 2 display type (only if # lanes <= 4)
 /*-----------------------------------------*
   - END -
  *-----------------------------------------*/
@@ -128,6 +128,16 @@ void loop()
  *================================================================================*/
 void timer_init_state()
 {
+  if (init_first)
+  {
+    set_status_led(LED_STS[mINIT]);
+    clear_displays(msgPower);
+
+    init_first = false;
+  }
+  read_brightness_value();
+
+// this state is exited via reset (serial message or hardware button)
 
   return;
 }
@@ -235,10 +245,11 @@ void timer_finished_state()
   if (finish_first)
   {
     set_status_led(LED_STS[mFINISH]);
+
     finish_first = false;
   }
 
-  if (GATE_RESET && digitalRead(START_GATE) != START_TRIP)    // reset timer if configured
+  if (GATE_RESET && digitalRead(START_GATE) != START_TRIP)    // auto reset timer if configured
   {                                                           // and start gate is closed
     delay(500);    // ignore any switch bounce
 
@@ -276,21 +287,19 @@ void initialize_timer(boolean powerup)
   start_time = 0;
   digitalWrite(START_SOL, LOW);
 
-  // if power up and gate is open -> goto FINISH state
-  if (powerup && digitalRead(START_GATE) == START_TRIP)
+  if (powerup)  // on power-up go to initial state to wait for reset
   {
-    clear_displays(msgPower);
-    timer_mode = mFINISH;
+    timer_mode = mINIT;
   }
-  else
+  else          // assumes gate is closed (pre-check before calling initialize)
   {
     timer_mode = mREADY;
 
     smsg(SMSG_READY);
     delay(100);
   }
-  Serial.flush();
 
+  init_first   = true;
   ready_first  = true;
   finish_first = true;
 
@@ -387,3 +396,4 @@ void test_timer_hw()
     delay(1000);
   }
 }
+
