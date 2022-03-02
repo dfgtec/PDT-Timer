@@ -112,7 +112,7 @@ void process_general_msgs()
     uint8_t input = PIND >> 2;                      // Arduino Uno
 #endif
     if (!LANE_TRIP) input = ~input;      // flip status bits if configured with LANE_TRIP = LOW
-    Serial.println((uint8_t)input, BIN);
+    SERIAL_COM.println((uint8_t)input, BIN);
   }
 
   return;
@@ -126,9 +126,9 @@ int get_serial_data()
 {
   int data = 0;
 
-  if (Serial.available() > 0)
+  if (SERIAL_COM.available() > 0)
   {
-    data = Serial.read();
+    data = SERIAL_COM.read();
     dbg(fDebug, "ser rec = ", data);
   }
 
@@ -169,11 +169,11 @@ void smsg(char msg, boolean crlf)
 {
   if (crlf)
   {
-    Serial.println(msg);
+    SERIAL_COM.println(msg);
   }
   else
   {
-    Serial.print(msg);
+    SERIAL_COM.print(msg);
   }
   return;
 }
@@ -186,11 +186,11 @@ void smsg_str(const char * msg, boolean crlf)
 {
   if (crlf)
   {
-    Serial.println(msg);
+    SERIAL_COM.println(msg);
   }
   else
   {
-    Serial.print(msg);
+    SERIAL_COM.print(msg);
   }
   return;
 }
@@ -214,9 +214,9 @@ void send_race_results()
       lane_time_sec = NULL_TIME;
     }
 
-    Serial.print(n+1);
-    Serial.print(" - ");
-    Serial.println(lane_time_sec, NUM_DIGIT);  // numbers are rounded to NUM_DIGIT
+    SERIAL_COM.print(n+1);
+    SERIAL_COM.print(" - ");
+    SERIAL_COM.println(lane_time_sec, NUM_DIGIT);  // numbers are rounded to NUM_DIGIT
                                                // digits by println function
   }
 
@@ -231,72 +231,72 @@ void send_timer_info()
 {
   char tmps[50];
 
-  Serial.println("-----------------------------");
+  SERIAL_COM.println("-----------------------------");
   sprintf(tmps, " PDT            Version %s", PDT_VERSION);
-  Serial.println(tmps);
-  Serial.println("-----------------------------");
+  SERIAL_COM.println(tmps);
+  SERIAL_COM.println("-----------------------------");
 
   sprintf(tmps, "  NUM_LANES     %d", NUM_LANES);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
   sprintf(tmps, "  GATE_RESET    %d", GATE_RESET);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
   sprintf(tmps, "  SHOW_PLACE    %d", SHOW_PLACE);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
   sprintf(tmps, "  PLACE_DELAY   %d", PLACE_DELAY);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
 
-  Serial.println("");
+  SERIAL_COM.println("");
 
 #ifdef LED_DISPLAY
-  Serial.println("  LED_DISPLAY   1");
+  SERIAL_COM.println("  LED_DISPLAY   1");
 #else
-  Serial.println("  LED_DISPLAY   0");
+  SERIAL_COM.println("  LED_DISPLAY   0");
 #endif
   sprintf(tmps, "  dBANK1        %d", dBANK1);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
   sprintf(tmps, "  dBANK2        %d", dBANK2);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
   sprintf(tmps, "  brightness    %d", (uint8_t)display_level);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
   sprintf(tmps, "  MIN_BRIGHT    %d", MIN_BRIGHT);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
   sprintf(tmps, "  MAX_BRIGHT    %d", MAX_BRIGHT);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
 
-  Serial.println("");
+  SERIAL_COM.println("");
 
 #ifdef MCU_ESP32
-  Serial.println("  MCU_ESP32     1");
+  SERIAL_COM.println("  MCU_ESP32     1");
 #else
-  Serial.println("  MCU_ESP32     0");
+  SERIAL_COM.println("  MCU_ESP32     0");
 #endif
   sprintf(tmps, "  MAX_LANE      %d", MAX_LANE);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
 
-  Serial.println("");
+  SERIAL_COM.println("");
 
 if (START_TRIP)
-  Serial.println("  START_TRIP    HIGH");
+  SERIAL_COM.println("  START_TRIP    HIGH");
 else
-  Serial.println("  START_TRIP    LOW");
+  SERIAL_COM.println("  START_TRIP    LOW");
 
 if (LANE_TRIP)
-  Serial.println("  LANE_TRIP     HIGH");
+  SERIAL_COM.println("  LANE_TRIP     HIGH");
 else
-  Serial.println("  LANE_TRIP     LOW");
+  SERIAL_COM.println("  LANE_TRIP     LOW");
 
-
-  Serial.println("");
+  SERIAL_COM.println("");
 
   sprintf(tmps, "  ARDUINO VERS  %04d", ARDUINO);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
   sprintf(tmps, "  COMPILE DATE  %s", __DATE__);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
   sprintf(tmps, "  COMPILE TIME  %s", __TIME__);
-  Serial.println(tmps);
+  SERIAL_COM.println(tmps);
 
-  Serial.println("-----------------------------");
-  Serial.flush();
+  SERIAL_COM.println("-----------------------------");
+  SERIAL_COM.flush();
+
   return;
 }
 

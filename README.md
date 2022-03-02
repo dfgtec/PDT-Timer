@@ -8,6 +8,11 @@ The PDT timer is an Arduino based race timer with a robust and flexible design w
 - Works standalone or can be interfaced to software running on a PC
 - Supports lane masking, start gate status check, force end of race
 
+**ESP32 Support**
+As of version 3.31 the PDT Timer can utilize an ESP32 MCU (currently configured and tested with HiLetgo ESP-WROOM-32 development boards), adding the following features: 
+- Easily expandable from 1 to 8 lanes
+- Wireless (Bluetooth) connection between the timer and PC (running race management software)
+
 Interfacing the race timer to software running on a computer (Windows, Mac or Linux) allows races to be managed and allows you to record and archive car run times as you test and tune your Pinewood Derby car(s).  The race timer is currently compatible with the following software:
 
 - Free PD Test/Tune/Track (PDT3) software utility (Windows only)
