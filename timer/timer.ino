@@ -73,7 +73,11 @@ void setup()
 /*-----------------------------------------*
   - software setup -
  *-----------------------------------------*/
-  Serial.begin(9600, SERIAL_8N1);
+#ifdef BT_COMM
+  SERIAL_COM.begin("PDT Timer");
+#else
+  SERIAL_COM.begin(9600, SERIAL_8N1);
+#endif
   smsg(SMSG_POWER);
 
 /*-----------------------------------------*

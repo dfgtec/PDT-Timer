@@ -1,5 +1,5 @@
 /*================================================================================*
-   Pinewood Derby Timer                                Version 3.30 - 27 Feb 2022
+   Pinewood Derby Timer                                 Version 3.31 - 1 Mar 2022
    www.dfgtec.com/pdt
 
    Flexible and affordable Pinewood Derby timer that interfaces with the
@@ -37,6 +37,7 @@
  *-----------------------------------------*/
 //#define LED_DISPLAY  1                 // enable lane place/time displays
 //#define MCU_ESP32    1                 // utilize ESP32 MCU 
+//#define BT_COMM      1                 // utilize Bluetooth communications (ESP32)
 
 const uint8_t START_TRIP = LOW;        // start switch trip condition
 const uint8_t LANE_TRIP  = HIGH;       // lane finish trip condition
@@ -47,7 +48,7 @@ const uint8_t LANE_TRIP  = HIGH;       // lane finish trip condition
 /*-----------------------------------------*
   - static definitions -
  *-----------------------------------------*/
-#define PDT_VERSION  "3.30"            // software version
+#define PDT_VERSION  "3.31"            // software version
 
 #ifdef MCU_ESP32
 const uint8_t MAX_LANE = 8;            // maximum number of lanes (ESP32)
@@ -199,6 +200,19 @@ const uint8_t LED_STS[6][3] = {{ pOFF, pOFF, pOFF},   // lsOFF    (-off-)
                                { pOFF, pDIM, pDIM}};  // mTEST    (dim cyan)
 
 /*-----------------------------------------*
+  - communications -
+ *-----------------------------------------*/
+#ifdef BT_COMM                         // bluetooth
+#define SERIAL_COM SerialBT
+#include "BluetoothSerial.h"
+BluetoothSerial SERIAL_COM;
+#else                                  // serial
+#define SERIAL_COM Serial
+#endif
+
+int           serial_data;             // serial data
+
+/*-----------------------------------------*
   - global variables -
  *-----------------------------------------*/
 byte          timer_mode;              // current timer mode
@@ -213,7 +227,6 @@ uint8_t       lane_msk;                // lane mask status
 uint8_t       end_cond;                // race end condition
 
 boolean       fDebug = false;          // debug flag
-int           serial_data;             // serial data
 
 /*-----------------------------------------*
   - function prototypes (default values) -
