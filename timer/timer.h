@@ -1,5 +1,5 @@
 /*================================================================================*
-   Pinewood Derby Timer                                 Version 3.31 - 1 Mar 2022
+   Pinewood Derby Timer                                Version 3.40 - ?? Mar 2022
    www.dfgtec.com/pdt
 
    Flexible and affordable Pinewood Derby timer that interfaces with the
@@ -35,12 +35,12 @@
 /*-----------------------------------------*
   - HARDWARE CONFIGURATION -
  *-----------------------------------------*/
-//#define LED_DISPLAY  1                 // enable lane place/time displays
-//#define MCU_ESP32    1                 // utilize ESP32 MCU 
+#define LED_DISPLAY  1                 // enable lane place/time displays
+#define MCU_ESP32    1                 // utilize ESP32 MCU 
 //#define BT_COMM      1                 // utilize Bluetooth communications (ESP32)
 
 const uint8_t START_TRIP = LOW;        // start switch trip condition
-const uint8_t LANE_TRIP  = HIGH;       // lane finish trip condition
+const uint8_t LANE_TRIP  = LOW;       // lane finish trip condition
 /*-----------------------------------------*
   - END -
  *-----------------------------------------*/
@@ -48,7 +48,7 @@ const uint8_t LANE_TRIP  = HIGH;       // lane finish trip condition
 /*-----------------------------------------*
   - static definitions -
  *-----------------------------------------*/
-#define PDT_VERSION  "3.31"            // software version
+#define PDT_VERSION  "3.40"            // software version
 
 #ifdef MCU_ESP32
 const uint8_t MAX_LANE = 8;            // maximum number of lanes (ESP32)
@@ -95,6 +95,7 @@ const char SMSG_DEBUG = 'D';           // <- toggle debug on/off
 const char SMSG_GNUML = 'N';           // <- request number of lanes
 const char SMSG_TINFO = 'I';           // <- request timer information
 
+const char SMSG_MPLXR = 'X';           // <- scan I2C multiplexer
 const char SMSG_DTEST = 'T';           // <- development test function
 
 /*-----------------------------------------*
@@ -129,20 +130,21 @@ const uint8_t LANE_DET[MAX_LANE] = {  2,   3,   4,   5,   6,   7};              
 /*-----------------------------------------*
   - display setup & variables -
  *-----------------------------------------*/
-const uint8_t MAX_DISP = 8;            // maximum number of displays
+const uint8_t MAX_DISP = 7;            // maximum number of displays
 
 #ifdef LED_DISPLAY
 #include "Wire.h"
 #include "Adafruit_LEDBackpack.h"      // LED control libraries
 #include "Adafruit_GFX.h"
 
-Adafruit_7segment  disp_mat[MAX_DISP];
-Adafruit_8x8matrix disp_8x8[MAX_DISP];
+Adafruit_7segment  disp_7seg_1[MAX_DISP], disp_7seg_2[MAX_DISP];
+Adafruit_8x8matrix disp_8x8m_1[MAX_DISP], disp_8x8m_2[MAX_DISP];
 #endif
 
 // Display I2C addresses
-//                        Display #    1     2     3     4     5     6     7     8
-const uint8_t DISP_ADD[MAX_DISP] = {0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77};    // Adafruit displays
+//                        Display #    1     2     3     4     5     6     7
+const uint8_t DISP_ADD[MAX_DISP] = {0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76};    // Adafruit displays
+//const uint8_t DISP_ADD[MAX_DISP] = {0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77};    // Adafruit displays
 
 // Display messages
 const uint8_t msgGateC[] = {0x6D, 0x48, 0x00, 0x39, 0x38};  // S=CL
@@ -173,6 +175,14 @@ const uint8_t dtNONE = 0;              // no displays
 const uint8_t dt8x8m = 1;              // Adafruit 8x8 matix displays
 const uint8_t dt7seg = 2;              // Adafruit 0.56" 7-segment displays
 const uint8_t dtL7sg = 3;              // Adafruit 1.20" 7-segment displays (inverted)
+
+// display bank addresses (I2C multiplexer)
+const uint8_t BANK1 = 0;               // display bank 1 address
+const uint8_t BANK2 = 1;               // display bank 2 address
+const uint8_t BANK3 = 2;               // display bank 3 address
+const uint8_t BANK4 = 3;               // display bank 4 address
+
+const uint8_t I2C_ADDR = 0x77;         // I2C multiplexer address
 
 const uint8_t MIN_BRIGHT =  0;         // minimum display brightness (0-15)
 const uint8_t MAX_BRIGHT = 15;         // maximum display brightness (0-15)
@@ -238,4 +248,5 @@ void smsg_str(const char * msg, boolean crlf=true);
 void update_display(uint8_t pos, const uint8_t msgL[], const uint8_t msgS[]=msgBlank);
 void update_display(uint8_t pos, uint8_t place, unsigned long dtime, boolean mode=false);
 void clear_displays(const uint8_t msg[]=msgBlank);
+void display_msg_7seg(Adafruit_7segment *disp, const uint8_t msg[], boolean flip=false);
 

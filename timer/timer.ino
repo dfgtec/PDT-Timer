@@ -28,13 +28,15 @@
 /*-----------------------------------------*
   - TIMER CONFIGURATION -
  *-----------------------------------------*/
-const uint8_t NUM_LANES   = 1;         // number of lanes
+const uint8_t NUM_LANES   = 2;         // number of lanes
 const boolean GATE_RESET  = false;     // enable closing start gate to reset timer
 const boolean SHOW_PLACE  = true;      // show place mode
 const uint8_t PLACE_DELAY = 3;         // delay (secs) when displaying place/time
 
-const uint8_t dBANK1 = dtNONE;         // bank 1 display type
-const uint8_t dBANK2 = dtNONE;         // bank 2 display type (only if # lanes <= 4)
+const uint8_t dtBANK1 = dt7seg;        // bank 1 display type (dtNONE, dt7seg or dtL7sg)
+const uint8_t dtBANK2 = dt8x8m;        // bank 2 display type (dtNONE or dt8x8m)
+const uint8_t dtBANK3 = dtNONE;        // bank 3 display type (dtNONE, dt7seg or dtL7sg)
+const uint8_t dtBANK4 = dtNONE;        // bank 4 display type (dtNONE or dt8x8m)
 /*-----------------------------------------*
   - END -
  *-----------------------------------------*/
@@ -67,11 +69,8 @@ void setup()
   REG_WRITE(GPIO_ENABLE_W1TC_REG, 0xFF << 12);
 #endif
 
-  display_init();
-  read_brightness_value();
-
 /*-----------------------------------------*
-  - software setup -
+  - communication setup -
  *-----------------------------------------*/
 #ifdef BT_COMM
   SERIAL_COM.begin("PDT Timer");
@@ -79,6 +78,12 @@ void setup()
   SERIAL_COM.begin(9600, SERIAL_8N1);
 #endif
   smsg(SMSG_POWER);
+
+/*-----------------------------------------*
+  - display setup -
+ *-----------------------------------------*/
+  display_init();
+  read_brightness_value();
 
 /*-----------------------------------------*
   - check for test mode -
@@ -302,6 +307,8 @@ void initialize_timer(boolean powerup)
     smsg(SMSG_READY);
     delay(100);
   }
+
+  last_disp_update = 0;
 
   init_first   = true;
   ready_first  = true;
