@@ -104,6 +104,11 @@ void process_general_msgs()
     smsg(SMSG_ACKNW);
   }
 
+  else if (serial_data == int(SMSG_MPLXR))    // scan I2C multiplexer
+  {
+    scan_i2c_multiplexer();
+  }
+
   else if (serial_data == int(SMSG_DTEST))    // development test function
   {
 #ifdef MCU_ESP32
@@ -252,9 +257,13 @@ void send_timer_info()
 #else
   SERIAL_COM.println("  LED_DISPLAY   0");
 #endif
-  sprintf(tmps, "  dBANK1        %d", dBANK1);
+  sprintf(tmps, "  dtBANK1       %d", dtBANK1);
   SERIAL_COM.println(tmps);
-  sprintf(tmps, "  dBANK2        %d", dBANK2);
+  sprintf(tmps, "  dtBANK2       %d", dtBANK2);
+  SERIAL_COM.println(tmps);
+  sprintf(tmps, "  dtBANK3       %d", dtBANK3);
+  SERIAL_COM.println(tmps);
+  sprintf(tmps, "  dtBANK4       %d", dtBANK4);
   SERIAL_COM.println(tmps);
   sprintf(tmps, "  brightness    %d", (uint8_t)display_level);
   SERIAL_COM.println(tmps);

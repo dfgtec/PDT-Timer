@@ -25,44 +25,23 @@
 
 
 /*================================================================================*
-  SEND MESSAGE TO DISPLAY
+  SEND MESSAGE TO 8x8 MATRIX DISPLAY
  *================================================================================*/
-void display_msg(uint8_t pos, uint8_t type, const uint8_t msg[])
+void display_msg_8x8m(Adafruit_8x8matrix *disp, const uint8_t msg[])
 {
 #ifndef LED_DISPLAY
   return;
 #else
 
-  if (type >= dt7seg)     
-    disp_mat[pos].clear();
-  else
-    disp_8x8[pos].clear();
+  disp->clear();
+  disp->setCursor(2, 0);
 
-  for (uint8_t d=0; d<=4; d++)
-  {
-    if (d == 3 && type == dt8x8m)     
-    {
-      disp_8x8[pos].setCursor(2, 0);
-      if (msg[d] == 0x40)
-        disp_8x8[pos].print("-");
-      else
-        disp_8x8[pos].print(" ");
-    }
-    else if (type == dt7seg)
-    {
-      disp_mat[pos].writeDigitRaw(d, msg[d]);
-    }
-    else if (type == dtL7sg)
-    {
-      uint8_t rc = flip_char(msg[d]);
-      disp_mat[pos].writeDigitRaw(4-d, rc);
-    }
-  }
+  if (msg[3] == 0x40)        // msgDashL
+    disp->print("-");
+  else if (msg[3] == 0x54)   // msgPower
+    disp->drawBitmap(0, 0, msg8x8On, 8, 8, LED_ON);
 
-  if (type >= dt7seg)     
-    disp_mat[pos].writeDisplay();
-  else
-    disp_8x8[pos].writeDisplay();
+  disp->writeDisplay();
 
   return;
 
@@ -71,41 +50,83 @@ void display_msg(uint8_t pos, uint8_t type, const uint8_t msg[])
 
 
 /*================================================================================*
-  SEND MESSAGE TO DISPLAY
+  SEND MESSAGE TO 7 SEGMENT DISPLAY
  *================================================================================*/
-void display_place(uint8_t pos, uint8_t type, uint8_t place)
+void display_msg_7seg(Adafruit_7segment *disp, const uint8_t msg[], boolean flip)
 {
 #ifndef LED_DISPLAY
   return;
 #else
+  uint8_t pos, dch;
 
+  disp->clear();
+
+  for (uint8_t d=0; d<=4; d++)
+  {
+    pos = d; dch = msg[d];
+
+    if (flip)  // invert and reverse for large 7 segment displays
+    {
+      dch = flip_char(msg[d]);
+      pos = 4 - d;
+    }
+    disp->writeDigitRaw(pos, dch);
+  }
+
+  disp->writeDisplay();
+
+  return;
+
+#endif
+}
+
+
+/*================================================================================*
+  SEND PLACE TO 8x8 MATRIX DISPLAY
+ *================================================================================*/
+void display_place_8x8m(Adafruit_8x8matrix *disp, uint8_t place)
+{
+#ifndef LED_DISPLAY
+  return;
+#else
   char cplace[4];
 
-  if (type >= dt7seg)     
-    disp_mat[pos].clear();
-  else
-    disp_8x8[pos].clear();
+  disp->clear();
+  disp->setCursor(2, 0);
 
-  if (type == dt8x8m)     
+  sprintf(cplace, "%1d", place);
+  disp->print(cplace[0]);
+
+  disp->writeDisplay();
+
+  return;
+
+#endif
+}
+
+
+/*================================================================================*
+  SEND PLACE TO 7 SEGMENT DISPLAY
+ *================================================================================*/
+void display_place_7seg(Adafruit_7segment *disp, uint8_t place, boolean flip)
+{
+#ifndef LED_DISPLAY
+  return;
+#else
+  uint8_t pos, dch;
+
+  disp->clear();
+
+  pos = 3; dch = numMasks[place];
+
+  if (flip)  // invert and reverse for large 7 segment displays
   {
-    disp_8x8[pos].setCursor(2, 0);
-    sprintf(cplace, "%1d", place);
-    disp_8x8[pos].print(cplace[0]);
-  }
-  else if (type == dt7seg)
-  {
-    disp_mat[pos].writeDigitNum(3, place, false);
-  }
-  else if (type == dtL7sg)
-  {
-    uint8_t rc = flip_char(numMasks[place]);
-    disp_mat[pos].writeDigitRaw(1, rc);
+    pos = 1;
+    dch = flip_char(numMasks[place]);
   }
 
-  if (type >= dt7seg)     
-    disp_mat[pos].writeDisplay();
-  else
-    disp_8x8[pos].writeDisplay();
+  disp->writeDigitRaw(pos, dch);
+  disp->writeDisplay();
 
   return;
 
@@ -116,20 +137,17 @@ void display_place(uint8_t pos, uint8_t type, uint8_t place)
 /*================================================================================*
   UPDATE LANE PLACE/TIME DISPLAY
  *================================================================================*/
-void display_time(uint8_t pos, uint8_t type, unsigned long dtime)
+void display_time_7seg(Adafruit_7segment *disp, unsigned long dtime, boolean flip)
 {
 #ifndef LED_DISPLAY
   return;
 #else
-
   char ctime[10];
   boolean showdot=false;
 
-  if (type < dt7seg) return;
-
-  disp_mat[pos].clear();
-  disp_mat[pos].drawColon(false);
-  if (type == dtL7sg) disp_mat[pos].writeDigitRaw(2, 16);  // ? dot on large display
+  disp->clear();
+  disp->drawColon(false);
+  if (flip) disp->writeDigitRaw(2, 16);  // ? dot on large display
 
   // calculate seconds and convert to string
   dtostrf((double)(dtime / (double)1000000.0), (DISP_DIGIT+1), DISP_DIGIT, ctime);
@@ -139,20 +157,20 @@ void display_time(uint8_t pos, uint8_t type, unsigned long dtime)
   {
     uint8_t dignum = char2int(ctime[c]);
 
-    if (type == dt7seg)
+    if (flip)  // invert and reverse for large 7 segment displays
     {
-      showdot = (ctime[c+1] == '.');
-      disp_mat[pos].writeDigitNum(d+(uint8_t)(d/2), dignum, showdot);    // time
+      uint8_t rc = flip_char(numMasks[dignum]);
+      disp->writeDigitRaw(4-(d+(uint8_t)(d/2)), rc);    // time
     }
     else
     {
-      uint8_t rc = flip_char(numMasks[dignum]);
-      disp_mat[pos].writeDigitRaw(4-(d+(uint8_t)(d/2)), rc);    // time
+      showdot = (ctime[c+1] == '.');
+      disp->writeDigitNum(d+(uint8_t)(d/2), dignum, showdot);    // time
     }
 
     c++; if (ctime[c] == '.') c++;
   }
-  disp_mat[pos].writeDisplay();
+  disp->writeDisplay();
 
   return;
 
@@ -169,35 +187,35 @@ void set_display_brightness(uint8_t level)
   return;
 #else
 
-  for (uint8_t n=0; n<NUM_LANES; n++)
+  if (dtBANK1 == dt7seg || dtBANK1 == dtL7sg)   // front main display bank (time or place/time)
   {
-    switch (dBANK1)
-    {
-      case dt8x8m:
-        disp_8x8[n].setBrightness(level);
-        break;
+    set_display_bank(BANK1);
+    for (uint8_t n=0; n<NUM_LANES; n++)
+      disp_7seg_1[n].setBrightness(level);
+  }
 
-      case dt7seg:
-      case dtL7sg:
-        disp_mat[n].setBrightness(level);
-        break;
-    }
-  
-    switch (dBANK2)
-    {
-      case dt8x8m:
-        disp_8x8[n+4].setBrightness(level);
-        break;
-  
-    case dt7seg:
-    case dtL7sg:
-        disp_mat[n+4].setBrightness(level);
-        break;
-    }
+  if (dtBANK2 == dt8x8m)                       // front place display bank (place)
+  {
+    set_display_bank(BANK2);
+    for (uint8_t n=0; n<NUM_LANES; n++)
+      disp_8x8m_1[n].setBrightness(level);
+  }
+
+  if (dtBANK3 == dt7seg || dtBANK3 == dtL7sg)   // rear main display bank (time or place/time)
+  {
+    set_display_bank(BANK3);
+    for (uint8_t n=0; n<NUM_LANES; n++)
+      disp_7seg_2[n].setBrightness(level);
+  }
+
+  if (dtBANK4 == dt8x8m)                       // rear place display bank (place)
+  {
+    set_display_bank(BANK4);
+    for (uint8_t n=0; n<NUM_LANES; n++)
+      disp_8x8m_2[n].setBrightness(level);
   }
 
   return;
-
 #endif
 }
 
@@ -210,21 +228,64 @@ void display_init()
 #ifndef LED_DISPLAY
   return;
 #else
+  Wire.begin();
 
-  for (uint8_t n=0; n<MAX_DISP; n++)
+  if (dtBANK1)                                  // front display bank (time or place/time)
   {
-    disp_mat[n] = Adafruit_7segment();
-    disp_mat[n].begin(DISP_ADD[n]);
-    disp_mat[n].clear();
-    disp_mat[n].drawColon(false);
-    disp_mat[n].writeDisplay();
+    set_display_bank(BANK1);
 
-    disp_8x8[n] = Adafruit_8x8matrix();
-    disp_8x8[n].begin(DISP_ADD[n]);
-    disp_8x8[n].setTextSize(1);
-    disp_8x8[n].setRotation(3);
-    disp_8x8[n].clear();
-    disp_8x8[n].writeDisplay();
+    for (uint8_t n=0; n<NUM_LANES; n++)
+    {
+      disp_7seg_1[n] = Adafruit_7segment();
+      disp_7seg_1[n].begin(DISP_ADD[n]);
+      disp_7seg_1[n].clear();
+      disp_7seg_1[n].drawColon(false);
+      disp_7seg_1[n].writeDisplay();
+    }
+  }
+
+  if (dtBANK2)                                  // front display bank (place)
+  {
+    set_display_bank(BANK2);
+
+    for (uint8_t n=0; n<NUM_LANES; n++)
+    {
+      disp_8x8m_1[n] = Adafruit_8x8matrix();
+      disp_8x8m_1[n].begin(DISP_ADD[n]);
+      disp_8x8m_1[n].setTextSize(1);
+      disp_8x8m_1[n].setRotation(3);
+      disp_8x8m_1[n].clear();
+      disp_8x8m_1[n].writeDisplay();
+    }
+  }
+
+  if (dtBANK3)                                  // rear display bank (time or place/time)
+  {
+    set_display_bank(BANK3);
+
+    for (uint8_t n=0; n<NUM_LANES; n++)
+    {
+      disp_7seg_2[n] = Adafruit_7segment();
+      disp_7seg_2[n].begin(DISP_ADD[n]);
+      disp_7seg_2[n].clear();
+      disp_7seg_2[n].drawColon(false);
+      disp_7seg_2[n].writeDisplay();
+    }
+  }
+
+  if (dtBANK4)                                  // rear display bank (place)
+  {
+    set_display_bank(BANK4);
+
+    for (uint8_t n=0; n<NUM_LANES; n++)
+    {
+      disp_8x8m_2[n] = Adafruit_8x8matrix();
+      disp_8x8m_2[n].begin(DISP_ADD[n]);
+      disp_8x8m_2[n].setTextSize(1);
+      disp_8x8m_2[n].setRotation(3);
+      disp_8x8m_2[n].clear();
+      disp_8x8m_2[n].writeDisplay();
+    }
   }
 
   return;
@@ -238,28 +299,29 @@ void display_init()
  *================================================================================*/
 void update_display(uint8_t pos, const uint8_t msgL[], const uint8_t msgS[])
 {
-  switch (dBANK1)
-  {
-    case dt8x8m:
-      display_msg(pos, dt8x8m, msgS);
-      break;
 
-    case dt7seg:
-    case dtL7sg:
-      display_msg(pos, dBANK1, msgL);
-      break;
+  if (dtBANK1 == dt7seg || dtBANK1 == dtL7sg)     // front display bank (time or place/time)
+  {
+    set_display_bank(BANK1);
+    display_msg_7seg(&disp_7seg_1[pos], msgL, (dtBANK1 == dtL7sg));
   }
 
-  switch (dBANK2)
+  if (dtBANK2 == dt8x8m)                          // front display bank (place)
   {
-    case dt8x8m:
-      display_msg(pos+4, dt8x8m, msgS);
-      break;
+    set_display_bank(BANK2);
+    display_msg_8x8m(&disp_8x8m_1[pos], msgS);
+  }
 
-    case dt7seg:
-    case dtL7sg:
-      display_msg(pos+4, dBANK2, msgL);
-      break;
+  if (dtBANK3 == dt7seg || dtBANK3 == dtL7sg)     // rear display bank (time or place/time)
+  {
+    set_display_bank(BANK3);
+    display_msg_7seg(&disp_7seg_2[pos], msgL, (dtBANK3 == dtL7sg));
+  }
+
+  if (dtBANK4 == dt8x8m)                          // rear display bank (place)
+  {
+    set_display_bank(BANK4);
+    display_msg_8x8m(&disp_8x8m_2[pos], msgS);
   }
 
   return;
@@ -271,35 +333,35 @@ void update_display(uint8_t pos, const uint8_t msgL[], const uint8_t msgS[])
  *================================================================================*/
 void update_display(uint8_t pos, uint8_t place, unsigned long dtime, boolean mode)
 {
-  switch (dBANK1)
-  {
-    case dt8x8m:
-      display_place(pos, dt8x8m, place);
-      break;
 
-    case dt7seg:
-    case dtL7sg:
-      if (mode)
-        display_place(pos, dBANK1, place);
-      else
-        display_time (pos, dBANK1, dtime);
-      break;
+  if (dtBANK1 == dt7seg || dtBANK1 == dtL7sg)   // front display bank (time or place/time)
+  {
+    set_display_bank(BANK1);
+    if (mode)
+      display_place_7seg(&disp_7seg_1[pos], place, (dtBANK1 == dtL7sg));
+    else
+      display_time_7seg(&disp_7seg_1[pos], dtime, (dtBANK1 == dtL7sg));
   }
 
-  switch (dBANK2)
+  if (dtBANK2 == dt8x8m)                        // front display bank (place)
   {
-    case dt8x8m:
-      display_place(pos+4, dt8x8m, place);
-      break;
+    set_display_bank(BANK2);
+    display_place_8x8m(&disp_8x8m_1[pos], place);
+  }
 
-    case dt7seg:
-    case dtL7sg:
-      if (mode)
-        display_place(pos+4, dBANK2, place);
-      else
-        display_time (pos+4, dBANK2, dtime);
-      break;
-      break;
+  if (dtBANK3 == dt7seg || dtBANK3 == dtL7sg)   // rear display bank (time or place/time)
+  {
+    set_display_bank(BANK3);
+    if (mode)
+      display_place_7seg(&disp_7seg_2[pos], place, (dtBANK3 == dtL7sg));
+    else
+      display_time_7seg(&disp_7seg_2[pos], dtime, (dtBANK3 == dtL7sg));
+  }
+
+  if (dtBANK4 == dt8x8m)                       // rear display bank (place)
+  {
+    set_display_bank(BANK4);
+    display_place_8x8m(&disp_8x8m_2[pos], place);
   }
 
   return;
@@ -333,7 +395,7 @@ void cycle_race_results()
   static boolean display_mode;
   unsigned long now;
 
-  if (!SHOW_PLACE || (dBANK1 == dt8x8m || dBANK2 == dt8x8m)) return;
+  if (!SHOW_PLACE || dtBANK2 || dtBANK4) return;
 
   now = millis();
 
@@ -382,7 +444,7 @@ void read_brightness_value()
 #endif
   float new_level;
 
-  new_level = long(1023 - analogRead(BRIGHT_LEV)) / 1023.0F * 15.0F;
+  new_level = long(ANLG_MAX - analogRead(BRIGHT_LEV)) / (float)ANLG_MAX * 15.0F;
   new_level = constrain(new_level, (float)MIN_BRIGHT, (float)MAX_BRIGHT);
 
   if (fabs(new_level - display_level) > 0.3F)    // deadband to prevent flickering
@@ -403,6 +465,58 @@ void set_status_led(uint8_t const ledSTS[])
   analogWrite(STATUS_LED_R, ledSTS[0]);
   analogWrite(STATUS_LED_G, ledSTS[1]);
   analogWrite(STATUS_LED_B, ledSTS[2]);
+
+  return;
+}
+
+
+/*================================================================================*
+  SELECT DISPLAY BANK VIA MULTIPLEXER
+ *================================================================================*/
+void set_display_bank(uint8_t b)
+{
+#ifndef LED_DISPLAY
+  return;
+#else
+
+  if (b > 7) return;
+ 
+  Wire.beginTransmission(I2C_ADDR);
+  Wire.write(1 << b);
+  Wire.endTransmission();  
+
+  return;
+
+#endif
+}
+
+
+/*================================================================================*
+  SCAN FOR AVAILABLE DISPLAYS
+ *================================================================================*/
+void scan_i2c_multiplexer()
+{
+  char tmps[25];
+
+  smsg_str("\nScanning TCA9548A I2C multiplexer:\n");
+    
+  for (uint8_t bank=0; bank<8; bank++)
+  {
+    set_display_bank(bank);
+    sprintf(tmps, "  TCA Bank #%d", bank); smsg_str(tmps);
+
+    for (uint8_t addr=112; addr<=119; addr++)    // from 0x70 to 0x77
+    {
+      if (addr == I2C_ADDR) continue;
+
+      Wire.beginTransmission(addr);
+      if (!Wire.endTransmission())
+      {
+        sprintf(tmps, "    Found I2C 0x%x", addr); smsg_str(tmps);
+      }
+    }
+  }
+  smsg_str("\ndone\n");
 
   return;
 }
