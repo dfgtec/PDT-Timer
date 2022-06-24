@@ -52,8 +52,10 @@ const uint8_t LANE_TRIP  = LOW;       // lane finish trip condition
 
 #ifdef MCU_ESP32
 const uint8_t MAX_LANE = 8;            // maximum number of lanes (ESP32)
+const int16_t ANLG_MAX = 4095;         // maximum analog range    (ESP32)
 #else
 const uint8_t MAX_LANE = 6;            //                         (Arduino Uno)
+const int16_t ANLG_MAX = 1023;         //                         (Arduino Uno)
 #endif
 
 const uint8_t mINIT   = 1;             // timer modes
@@ -155,6 +157,8 @@ const uint8_t msgDashT[] = {0x40, 0x40, 0x00, 0x40, 0x40};  // ----
 const uint8_t msgDashL[] = {0x00, 0x00, 0x00, 0x40, 0x00};  //   -
 const uint8_t msgPower[] = {0x00, 0x5c, 0x00, 0x54, 0x00};  //  on 
 const uint8_t msgBlank[] = {0x00, 0x00, 0x00, 0x00, 0x00};  // (blank)
+
+const uint8_t msg8x8On[] = {0x18, 0x24, 0x18, 0x00, 0x3C, 0x04, 0x38, 0x00};  // on
 
 // Number (0-9) bitmasks
 const uint8_t numMasks[] = {

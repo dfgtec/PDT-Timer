@@ -36,8 +36,10 @@ void display_msg_8x8m(Adafruit_8x8matrix *disp, const uint8_t msg[])
   disp->clear();
   disp->setCursor(2, 0);
 
-  if (msg[3] == 0x40)
+  if (msg[3] == 0x40)        // msgDashL
     disp->print("-");
+  else if (msg[3] == 0x54)   // msgPower
+    disp->drawBitmap(0, 0, msg8x8On, 8, 8, LED_ON);
 
   disp->writeDisplay();
 
@@ -68,9 +70,9 @@ void display_msg_7seg(Adafruit_7segment *disp, const uint8_t msg[], boolean flip
       dch = flip_char(msg[d]);
       pos = 4 - d;
     }
-
     disp->writeDigitRaw(pos, dch);
   }
+
   disp->writeDisplay();
 
   return;
@@ -87,7 +89,6 @@ void display_place_8x8m(Adafruit_8x8matrix *disp, uint8_t place)
 #ifndef LED_DISPLAY
   return;
 #else
-
   char cplace[4];
 
   disp->clear();
@@ -141,7 +142,6 @@ void display_time_7seg(Adafruit_7segment *disp, unsigned long dtime, boolean fli
 #ifndef LED_DISPLAY
   return;
 #else
-
   char ctime[10];
   boolean showdot=false;
 
@@ -157,7 +157,7 @@ void display_time_7seg(Adafruit_7segment *disp, unsigned long dtime, boolean fli
   {
     uint8_t dignum = char2int(ctime[c]);
 
-    if (flip)
+    if (flip)  // invert and reverse for large 7 segment displays
     {
       uint8_t rc = flip_char(numMasks[dignum]);
       disp->writeDigitRaw(4-(d+(uint8_t)(d/2)), rc);    // time
@@ -244,7 +244,7 @@ void display_init()
     }
   }
 
-  if (dtBANK2)                                 // front display bank (place)
+  if (dtBANK2)                                  // front display bank (place)
   {
     set_display_bank(BANK2);
 
@@ -273,7 +273,7 @@ void display_init()
     }
   }
 
-  if (dtBANK4)                                 // rear display bank (place)
+  if (dtBANK4)                                  // rear display bank (place)
   {
     set_display_bank(BANK4);
 
@@ -444,7 +444,7 @@ void read_brightness_value()
 #endif
   float new_level;
 
-  new_level = long(1023 - analogRead(BRIGHT_LEV)) / 1023.0F * 15.0F;
+  new_level = long(ANLG_MAX - analogRead(BRIGHT_LEV)) / (float)ANLG_MAX * 15.0F;
   new_level = constrain(new_level, (float)MIN_BRIGHT, (float)MAX_BRIGHT);
 
   if (fabs(new_level - display_level) > 0.3F)    // deadband to prevent flickering
@@ -486,6 +486,7 @@ void set_display_bank(uint8_t b)
   Wire.endTransmission();  
 
   return;
+
 #endif
 }
 
