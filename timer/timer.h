@@ -1,5 +1,5 @@
 /*================================================================================*
-   Pinewood Derby Timer                                Version 3.40 - ?? Mar 2022
+   Pinewood Derby Timer                                Version 3.40 - 24 Jun 2022
    www.dfgtec.com/pdt
 
    Flexible and affordable Pinewood Derby timer that interfaces with the
@@ -35,8 +35,8 @@
 /*-----------------------------------------*
   - HARDWARE CONFIGURATION -
  *-----------------------------------------*/
-#define LED_DISPLAY  1                 // enable lane place/time displays
-#define MCU_ESP32    1                 // utilize ESP32 MCU 
+//#define LED_DISPLAY  1                 // enable lane place/time displays
+//#define MCU_ESP32    1                 // utilize ESP32 MCU 
 //#define BT_COMM      1                 // utilize Bluetooth communications (ESP32)
 
 const uint8_t START_TRIP = LOW;        // start switch trip condition
